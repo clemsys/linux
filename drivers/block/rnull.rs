@@ -5,6 +5,10 @@
 //! load time by parameters `param_memory_backed`, `param_capacity_mib`,
 //! `param_irq_mode` and `param_completion_time_nsec!.
 
+#![feature(impl_trait_in_assoc_type)]
+#![feature(allocator_api)]
+#![feature(offset_of)]
+
 use std::ops::Deref;
 
 use kernel::{
