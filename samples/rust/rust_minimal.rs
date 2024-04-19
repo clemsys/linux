@@ -22,9 +22,9 @@ impl kernel::Module for RustMinimal {
         pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
 
         let mut numbers = Vec::new();
-        numbers.try_push(72)?;
-        numbers.try_push(108)?;
-        numbers.try_push(200)?;
+        numbers.push(72);
+        numbers.push(108);
+        numbers.push(200);
 
         Ok(RustMinimal { numbers })
     }
