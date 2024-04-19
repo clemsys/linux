@@ -3,8 +3,9 @@
 # Where to place rustdoc generated documentation
 rustdoc_output := $(objtree)/Documentation/output/rust/rustdoc
 
-# 2 lines MODIFIED BY CLEMSYS
+# next 3 lines MODIFIED BY CLEMSYS
 # obj-$(CONFIG_RUST) += core.o compiler_builtins.o
+obj-$(CONFIG_RUST) += compiler_builtins.o
 # always-$(CONFIG_RUST) += exports_core_generated.h
 
 # Missing prototypes are expected in the helpers since these are exported
@@ -16,10 +17,33 @@ always-$(CONFIG_RUST) += libmacros.so
 no-clean-files += libmacros.so
 
 always-$(CONFIG_RUST) += bindings/bindings_generated.rs bindings/bindings_helpers_generated.rs
-# 3 lines MODIFIED BY CLEMSYS
+# next 7 lines MODIFIED BY CLEMSYS
 # obj-$(CONFIG_RUST) += alloc.o bindings.o kernel.o
 # always-$(CONFIG_RUST) += exports_alloc_generated.h exports_bindings_generated.h \
 #     exports_kernel_generated.h
+obj-$(CONFIG_RUST) += bindings.o kernel.o
+always-$(CONFIG_RUST) += exports_bindings_generated.h \
+    exports_kernel_generated.h
+obj-$(CONFIG_RUST) += bindings.o kernel.o
+
+always-$(CONFIG_RUST) += uapi/uapi_generated.rs
+obj-$(CONFIG_RUST) += uapi.o
+
+ifdef CONFIG_RUST_BUILD_ASSERT_ALLOW
+obj-$(CONFIG_RUST) += build_error.o
+else
+always-$(CONFIG_RUST) += build_error.o
+endif
+
+obj-$(CONFIG_RUST) += exports.o
+
+always-$(CONFIG_RUST_KERNEL_DOCTESTS) += doctests_kernel_generated.rs
+always-$(CONFIG_RUST_KERNEL_DOCTESTS) += doctests_kernel_generated_kunit.c
+
+obj-$(CONFIG_RUST_KERNEL_DOCTESTS) += doctests_kernel_generated.o
+obj-$(CONFIG_RUST_KERNEL_DOCTESTS) += doctests_kernel_generated_kunit.o
+
+# Avoids running `$(RUSTC)` for the sysroot when it may not be available.
 
 always-$(CONFIG_RUST) += uapi/uapi_generated.rs
 obj-$(CONFIG_RUST) += uapi.o
