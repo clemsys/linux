@@ -8,7 +8,6 @@
 //! not ported or wrapped in the `kernel` crate, then do so first instead of
 //! using this crate.
 
-#![no_std]
 // See <https://github.com/rust-lang/rust-bindgen/issues/1651>.
 #![cfg_attr(test, allow(deref_nullptr))]
 #![cfg_attr(test, allow(unaligned_references))]
@@ -57,7 +56,7 @@ pub const SLAB_RECLAIM_ACCOUNT: slab_flags_t = BINDINGS_SLAB_RECLAIM_ACCOUNT;
 pub const SLAB_MEM_SPREAD: slab_flags_t = BINDINGS_SLAB_MEM_SPREAD;
 pub const SLAB_ACCOUNT: slab_flags_t = BINDINGS_SLAB_ACCOUNT;
 
-pub const SB_RDONLY: core::ffi::c_ulong = BINDINGS_SB_RDONLY;
+pub const SB_RDONLY: std::ffi::c_ulong = BINDINGS_SB_RDONLY;
 
 pub const MAX_LFS_FILESIZE: loff_t = BINDINGS_MAX_LFS_FILESIZE;
 

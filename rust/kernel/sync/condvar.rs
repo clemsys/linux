@@ -7,8 +7,8 @@
 
 use super::{lock::Backend, lock::Guard, LockClassKey};
 use crate::{bindings, init::PinInit, pin_init, str::CStr, types::Opaque};
-use core::marker::PhantomPinned;
 use macros::pin_data;
+use std::marker::PhantomPinned;
 
 /// Creates a [`CondVar`] initialiser with the given name and a newly-created lock class.
 #[macro_export]

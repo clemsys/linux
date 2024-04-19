@@ -9,7 +9,7 @@ use crate::{
     error::{to_result, Error, Result},
     types::{ForeignOwnable, Opaque, ScopeGuard}, init::PinInit,
 };
-use core::{
+use std::{
     marker::{PhantomData, PhantomPinned},
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -116,7 +116,7 @@ impl<'a, T: ForeignOwnable> Reservation<'a, T> {
         }
         let index = self.1;
         // The reservation is now fulfilled, so do not run our destructor.
-        core::mem::forget(self);
+        std::mem::forget(self);
         Ok(index)
     }
 
@@ -246,7 +246,7 @@ impl<T: ForeignOwnable> XArray<T> {
     /// If `value` is `None`, then the index is reserved from further allocation but remains
     /// free for storing a value into it.
     fn alloc_limits_opt(self: Pin<&Self>, value: Option<T>, min: u32, max: u32) -> Result<usize> {
-        let new = value.map_or(core::ptr::null(), |a| a.into_foreign());
+        let new = value.map_or(std::ptr::null(), |a| a.into_foreign());
         let mut id: u32 = 0;
 
         let guard = ScopeGuard::new(|| {
@@ -316,7 +316,7 @@ impl<T: ForeignOwnable> XArray<T> {
 
 impl<T: ForeignOwnable> Drop for XArray<T> {
     fn drop(&mut self) {
-        let mut index: core::ffi::c_ulong = 0;
+        let mut index: std::ffi::c_ulong = 0;
 
         // SAFETY: `self.xa` is valid by the type invariant, and as we have
         // the only reference to the `XArray` we can safely iterate its contents
@@ -325,7 +325,7 @@ impl<T: ForeignOwnable> Drop for XArray<T> {
             let mut entry = bindings::xa_find(
                 self.xa.get(),
                 &mut index,
-                core::ffi::c_ulong::MAX,
+                std::ffi::c_ulong::MAX,
                 bindings::BINDINGS_XA_PRESENT,
             );
 
@@ -334,7 +334,7 @@ impl<T: ForeignOwnable> Drop for XArray<T> {
                 entry = bindings::xa_find_after(
                     self.xa.get(),
                     &mut index,
-                    core::ffi::c_ulong::MAX,
+                    std::ffi::c_ulong::MAX,
                     bindings::BINDINGS_XA_PRESENT,
                 );
             }

@@ -47,7 +47,7 @@ pub(crate) fn pin_data(args: TokenStream, input: TokenStream) -> TokenStream {
             // If we did not find the name of the struct then we will use `Self` as the replacement
             // and add a compile error to ensure it does not compile.
             errs.extend(
-                "::core::compile_error!(\"Could not locate type name.\");"
+                "::std::compile_error!(\"Could not locate type name.\");"
                     .parse::<TokenStream>()
                     .unwrap(),
             );
@@ -101,7 +101,7 @@ fn replace_self_and_deny_type_defs(
         {
             errs.extend(
                 format!(
-                    "::core::compile_error!(\"Cannot use `{i}` inside of struct definition with \
+                    "::std::compile_error!(\"Cannot use `{i}` inside of struct definition with \
                         `#[pin_data]`.\");"
                 )
                 .parse::<TokenStream>()

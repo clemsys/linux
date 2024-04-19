@@ -20,7 +20,7 @@
 //!
 //! ```rust,ignore
 //! # use kernel::init::*;
-//! # use core::pin::Pin;
+//! # use std::pin::Pin;
 //! #[pin_data]
 //! #[repr(C)]
 //! struct Bar<T> {
@@ -60,7 +60,7 @@
 //!
 //! Below you can find individual section about the different macro invocations. Here are some
 //! general things we need to take into account when designing macros:
-//! - use global paths, similarly to file paths, these start with the separator: `::core::panic!()`
+//! - use global paths, similarly to file paths, these start with the separator: `::std::panic!()`
 //!   this ensures that the correct item is used, since users could define their own `mod core {}`
 //!   and then their own `panic!` inside to execute arbitrary code inside of our macro.
 //! - macro `unsafe` hygiene: we need to ensure that we do not expand arbitrary, user-supplied
@@ -101,16 +101,16 @@
 //!     // since we need to implement access functions for each field and thus need to know its
 //!     // type.
 //!     struct __ThePinData<T> {
-//!         __phantom: ::core::marker::PhantomData<fn(Bar<T>) -> Bar<T>>,
+//!         __phantom: ::std::marker::PhantomData<fn(Bar<T>) -> Bar<T>>,
 //!     }
 //!     // We implement `Copy` for the pin-data struct, since all functions it defines will take
 //!     // `self` by value.
-//!     impl<T> ::core::clone::Clone for __ThePinData<T> {
+//!     impl<T> ::std::clone::Clone for __ThePinData<T> {
 //!         fn clone(&self) -> Self {
 //!             *self
 //!         }
 //!     }
-//!     impl<T> ::core::marker::Copy for __ThePinData<T> {}
+//!     impl<T> ::std::marker::Copy for __ThePinData<T> {}
 //!     // For every field of `Bar`, the pin-data struct will define a function with the same name
 //!     // and accessor (`pub` or `pub(crate)` etc.). This function will take a pointer to the
 //!     // field (`slot`) and a `PinInit` or `Init` depending on the projection kind of the field
@@ -122,7 +122,7 @@
 //!             slot: *mut T,
 //!             // Since `t` is `#[pin]`, this is `PinInit`.
 //!             init: impl ::kernel::init::PinInit<T, E>,
-//!         ) -> ::core::result::Result<(), E> {
+//!         ) -> ::std::result::Result<(), E> {
 //!             unsafe { ::kernel::init::PinInit::__pinned_init(init, slot) }
 //!         }
 //!         pub unsafe fn x<E>(
@@ -130,7 +130,7 @@
 //!             slot: *mut usize,
 //!             // Since `x` is not `#[pin]`, this is `Init`.
 //!             init: impl ::kernel::init::Init<usize, E>,
-//!         ) -> ::core::result::Result<(), E> {
+//!         ) -> ::std::result::Result<(), E> {
 //!             unsafe { ::kernel::init::Init::__init(init, slot) }
 //!         }
 //!     }
@@ -140,7 +140,7 @@
 //!         type PinData = __ThePinData<T>;
 //!         unsafe fn __pin_data() -> Self::PinData {
 //!             __ThePinData {
-//!                 __phantom: ::core::marker::PhantomData,
+//!                 __phantom: ::std::marker::PhantomData,
 //!             }
 //!         }
 //!     }
@@ -164,15 +164,15 @@
 //!     //   into accepting these bounds regardless.
 //!     #[allow(dead_code)]
 //!     struct __Unpin<'__pin, T> {
-//!         __phantom_pin: ::core::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
-//!         __phantom: ::core::marker::PhantomData<fn(Bar<T>) -> Bar<T>>,
+//!         __phantom_pin: ::std::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
+//!         __phantom: ::std::marker::PhantomData<fn(Bar<T>) -> Bar<T>>,
 //!         // Our only `#[pin]` field is `t`.
 //!         t: T,
 //!     }
 //!     #[doc(hidden)]
-//!     impl<'__pin, T> ::core::marker::Unpin for Bar<T>
+//!     impl<'__pin, T> ::std::marker::Unpin for Bar<T>
 //!     where
-//!         __Unpin<'__pin, T>: ::core::marker::Unpin,
+//!         __Unpin<'__pin, T>: ::std::marker::Unpin,
 //!     {}
 //!     // Now we need to ensure that `Bar` does not implement `Drop`, since that would give users
 //!     // access to `&mut self` inside of `drop` even if the struct was pinned. This could lead to
@@ -183,7 +183,7 @@
 //!     // (normally people want to know if a type has any kind of drop glue at all, here we want
 //!     // to know if it has any kind of custom drop glue, which is exactly what this bound does).
 //!     #[allow(drop_bounds)]
-//!     impl<T: ::core::ops::Drop> MustNotImplDrop for T {}
+//!     impl<T: ::std::ops::Drop> MustNotImplDrop for T {}
 //!     impl<T> MustNotImplDrop for Bar<T> {}
 //!     // Here comes a convenience check, if one implemented `PinnedDrop`, but forgot to add it to
 //!     // `#[pin_data]`, then this will error with the same mechanic as above, this is not needed
@@ -234,7 +234,7 @@
 //!             let init = ::kernel::init::__internal::PinData::make_closure::<
 //!                 _,
 //!                 __InitOk,
-//!                 ::core::convert::Infallible,
+//!                 ::std::convert::Infallible,
 //!             >(data, move |slot| {
 //!                 {
 //!                     // Shadow the structure so it cannot be used to return early. If a user
@@ -244,31 +244,31 @@
 //!                     struct __InitOk;
 //!                     // This is the expansion of `t,`, which is syntactic sugar for `t: t,`.
 //!                     {
-//!                         unsafe { ::core::ptr::write(::core::addr_of_mut!((*slot).t), t) };
+//!                         unsafe { ::std::ptr::write(::std::addr_of_mut!((*slot).t), t) };
 //!                     }
 //!                     // Since initialization could fail later (not in this case, since the
 //!                     // error type is `Infallible`) we will need to drop this field if there
 //!                     // is an error later. This `DropGuard` will drop the field when it gets
 //!                     // dropped and has not yet been forgotten.
 //!                     let t = unsafe {
-//!                         ::pinned_init::__internal::DropGuard::new(::core::addr_of_mut!((*slot).t))
+//!                         ::pinned_init::__internal::DropGuard::new(::std::addr_of_mut!((*slot).t))
 //!                     };
 //!                     // Expansion of `x: 0,`:
 //!                     // Since this can be an arbitrary expression we cannot place it inside
 //!                     // of the `unsafe` block, so we bind it here.
 //!                     {
 //!                         let x = 0;
-//!                         unsafe { ::core::ptr::write(::core::addr_of_mut!((*slot).x), x) };
+//!                         unsafe { ::std::ptr::write(::std::addr_of_mut!((*slot).x), x) };
 //!                     }
 //!                     // We again create a `DropGuard`.
 //!                     let x = unsafe {
-//!                         ::kernel::init::__internal::DropGuard::new(::core::addr_of_mut!((*slot).x))
+//!                         ::kernel::init::__internal::DropGuard::new(::std::addr_of_mut!((*slot).x))
 //!                     };
 //!                     // Since initialization has successfully completed, we can now forget
 //!                     // the guards. This is not `mem::forget`, since we only have
 //!                     // `&DropGuard`.
-//!                     ::core::mem::forget(x);
-//!                     ::core::mem::forget(t);
+//!                     ::std::mem::forget(x);
+//!                     ::std::mem::forget(t);
 //!                     // Here we use the type checker to ensure that every field has been
 //!                     // initialized exactly once, since this is `if false` it will never get
 //!                     // executed, but still type-checked.
@@ -278,14 +278,14 @@
 //!                     #[allow(unreachable_code, clippy::diverging_sub_expression)]
 //!                     let _ = || {
 //!                         unsafe {
-//!                             ::core::ptr::write(
+//!                             ::std::ptr::write(
 //!                                 slot,
 //!                                 Self {
 //!                                     // We only care about typecheck finding every field
 //!                                     // here, the expression does not matter, just conjure
 //!                                     // one using `panic!()`:
-//!                                     t: ::core::panic!(),
-//!                                     x: ::core::panic!(),
+//!                                     t: ::std::panic!(),
+//!                                     x: ::std::panic!(),
 //!                                 },
 //!                             );
 //!                         };
@@ -298,14 +298,14 @@
 //!             // Change the return type from `__InitOk` to `()`.
 //!             let init = move |
 //!                 slot,
-//!             | -> ::core::result::Result<(), ::core::convert::Infallible> {
+//!             | -> ::std::result::Result<(), ::std::convert::Infallible> {
 //!                 init(slot).map(|__InitOk| ())
 //!             };
 //!             // Construct the initializer.
 //!             let init = unsafe {
 //!                 ::kernel::init::pin_init_from_closure::<
 //!                     _,
-//!                     ::core::convert::Infallible,
+//!                     ::std::convert::Infallible,
 //!                 >(init)
 //!             };
 //!             init
@@ -337,28 +337,28 @@
 //! }
 //! const _: () = {
 //!     struct __ThePinData {
-//!         __phantom: ::core::marker::PhantomData<fn(Foo) -> Foo>,
+//!         __phantom: ::std::marker::PhantomData<fn(Foo) -> Foo>,
 //!     }
-//!     impl ::core::clone::Clone for __ThePinData {
+//!     impl ::std::clone::Clone for __ThePinData {
 //!         fn clone(&self) -> Self {
 //!             *self
 //!         }
 //!     }
-//!     impl ::core::marker::Copy for __ThePinData {}
+//!     impl ::std::marker::Copy for __ThePinData {}
 //!     #[allow(dead_code)]
 //!     impl __ThePinData {
 //!         unsafe fn b<E>(
 //!             self,
 //!             slot: *mut Bar<u32>,
 //!             init: impl ::kernel::init::PinInit<Bar<u32>, E>,
-//!         ) -> ::core::result::Result<(), E> {
+//!         ) -> ::std::result::Result<(), E> {
 //!             unsafe { ::kernel::init::PinInit::__pinned_init(init, slot) }
 //!         }
 //!         unsafe fn a<E>(
 //!             self,
 //!             slot: *mut usize,
 //!             init: impl ::kernel::init::Init<usize, E>,
-//!         ) -> ::core::result::Result<(), E> {
+//!         ) -> ::std::result::Result<(), E> {
 //!             unsafe { ::kernel::init::Init::__init(init, slot) }
 //!         }
 //!     }
@@ -366,7 +366,7 @@
 //!         type PinData = __ThePinData;
 //!         unsafe fn __pin_data() -> Self::PinData {
 //!             __ThePinData {
-//!                 __phantom: ::core::marker::PhantomData,
+//!                 __phantom: ::std::marker::PhantomData,
 //!             }
 //!         }
 //!     }
@@ -375,23 +375,23 @@
 //!     }
 //!     #[allow(dead_code)]
 //!     struct __Unpin<'__pin> {
-//!         __phantom_pin: ::core::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
-//!         __phantom: ::core::marker::PhantomData<fn(Foo) -> Foo>,
+//!         __phantom_pin: ::std::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
+//!         __phantom: ::std::marker::PhantomData<fn(Foo) -> Foo>,
 //!         b: Bar<u32>,
 //!     }
 //!     #[doc(hidden)]
-//!     impl<'__pin> ::core::marker::Unpin for Foo
+//!     impl<'__pin> ::std::marker::Unpin for Foo
 //!     where
-//!         __Unpin<'__pin>: ::core::marker::Unpin,
+//!         __Unpin<'__pin>: ::std::marker::Unpin,
 //!     {}
 //!     // Since we specified `PinnedDrop` as the argument to `#[pin_data]`, we expect `Foo` to
 //!     // implement `PinnedDrop`. Thus we do not need to prevent `Drop` implementations like
 //!     // before, instead we implement `Drop` here and delegate to `PinnedDrop`.
-//!     impl ::core::ops::Drop for Foo {
+//!     impl ::std::ops::Drop for Foo {
 //!         fn drop(&mut self) {
 //!             // Since we are getting dropped, no one else has a reference to `self` and thus we
 //!             // can assume that we never move.
-//!             let pinned = unsafe { ::core::pin::Pin::new_unchecked(self) };
+//!             let pinned = unsafe { ::std::pin::Pin::new_unchecked(self) };
 //!             // Create the unsafe token that proves that we are inside of a destructor, this
 //!             // type is only allowed to be created in a destructor.
 //!             let token = unsafe { ::kernel::init::__internal::OnlyCallFromDrop::new() };
@@ -454,31 +454,31 @@
 //!     let init = ::kernel::init::__internal::PinData::make_closure::<
 //!         _,
 //!         __InitOk,
-//!         ::core::convert::Infallible,
+//!         ::std::convert::Infallible,
 //!     >(data, move |slot| {
 //!         {
 //!             struct __InitOk;
 //!             {
-//!                 unsafe { ::core::ptr::write(::core::addr_of_mut!((*slot).a), a) };
+//!                 unsafe { ::std::ptr::write(::std::addr_of_mut!((*slot).a), a) };
 //!             }
 //!             let a = unsafe {
-//!                 ::kernel::init::__internal::DropGuard::new(::core::addr_of_mut!((*slot).a))
+//!                 ::kernel::init::__internal::DropGuard::new(::std::addr_of_mut!((*slot).a))
 //!             };
 //!             let init = Bar::new(36);
-//!             unsafe { data.b(::core::addr_of_mut!((*slot).b), b)? };
+//!             unsafe { data.b(::std::addr_of_mut!((*slot).b), b)? };
 //!             let b = unsafe {
-//!                 ::kernel::init::__internal::DropGuard::new(::core::addr_of_mut!((*slot).b))
+//!                 ::kernel::init::__internal::DropGuard::new(::std::addr_of_mut!((*slot).b))
 //!             };
-//!             ::core::mem::forget(b);
-//!             ::core::mem::forget(a);
+//!             ::std::mem::forget(b);
+//!             ::std::mem::forget(a);
 //!             #[allow(unreachable_code, clippy::diverging_sub_expression)]
 //!             let _ = || {
 //!                 unsafe {
-//!                     ::core::ptr::write(
+//!                     ::std::ptr::write(
 //!                         slot,
 //!                         Foo {
-//!                             a: ::core::panic!(),
-//!                             b: ::core::panic!(),
+//!                             a: ::std::panic!(),
+//!                             b: ::std::panic!(),
 //!                         },
 //!                     );
 //!                 };
@@ -488,11 +488,11 @@
 //!     });
 //!     let init = move |
 //!         slot,
-//!     | -> ::core::result::Result<(), ::core::convert::Infallible> {
+//!     | -> ::std::result::Result<(), ::std::convert::Infallible> {
 //!         init(slot).map(|__InitOk| ())
 //!     };
 //!     let init = unsafe {
-//!         ::kernel::init::pin_init_from_closure::<_, ::core::convert::Infallible>(init)
+//!         ::kernel::init::pin_init_from_closure::<_, ::std::convert::Infallible>(init)
 //!     };
 //!     init
 //! };
@@ -587,7 +587,7 @@ macro_rules! __pin_data {
         @ty_generics($($ty_generics:tt)*),
         @where($($whr:tt)*),
         // We found a PhantomPinned field, this should generally be pinned!
-        @fields_munch($field:ident : $($($(::)?core::)?marker::)?PhantomPinned, $($rest:tt)*),
+        @fields_munch($field:ident : $($($(::)?std::)?marker::)?PhantomPinned, $($rest:tt)*),
         @pinned($($pinned:tt)*),
         @not_pinned($($not_pinned:tt)*),
         @fields($($fields:tt)*),
@@ -596,7 +596,7 @@ macro_rules! __pin_data {
         @is_pinned(),
         @pinned_drop($($pinned_drop:ident)?),
     ) => {
-        ::core::compile_error!(concat!(
+        ::std::compile_error!(concat!(
             "The field `",
             stringify!($field),
             "` of type `PhantomPinned` only has an effect, if it has the `#[pin]` attribute.",
@@ -609,9 +609,9 @@ macro_rules! __pin_data {
             @ty_generics($($ty_generics)*),
             @where($($whr)*),
             @fields_munch($($rest)*),
-            @pinned($($pinned)* $($accum)* $field: ::core::marker::PhantomPinned,),
+            @pinned($($pinned)* $($accum)* $field: ::std::marker::PhantomPinned,),
             @not_pinned($($not_pinned)*),
-            @fields($($fields)* $($accum)* $field: ::core::marker::PhantomPinned,),
+            @fields($($fields)* $($accum)* $field: ::std::marker::PhantomPinned,),
             @accum(),
             @is_pinned(),
             @pinned_drop($($pinned_drop)?),
@@ -817,18 +817,18 @@ macro_rules! __pin_data {
             $vis struct __ThePinData<$($impl_generics)*>
             where $($whr)*
             {
-                __phantom: ::core::marker::PhantomData<
+                __phantom: ::std::marker::PhantomData<
                     fn($name<$($ty_generics)*>) -> $name<$($ty_generics)*>
                 >,
             }
 
-            impl<$($impl_generics)*> ::core::clone::Clone for __ThePinData<$($ty_generics)*>
+            impl<$($impl_generics)*> ::std::clone::Clone for __ThePinData<$($ty_generics)*>
             where $($whr)*
             {
                 fn clone(&self) -> Self { *self }
             }
 
-            impl<$($impl_generics)*> ::core::marker::Copy for __ThePinData<$($ty_generics)*>
+            impl<$($impl_generics)*> ::std::marker::Copy for __ThePinData<$($ty_generics)*>
             where $($whr)*
             {}
 
@@ -851,7 +851,7 @@ macro_rules! __pin_data {
                 type PinData = __ThePinData<$($ty_generics)*>;
 
                 unsafe fn __pin_data() -> Self::PinData {
-                    __ThePinData { __phantom: ::core::marker::PhantomData }
+                    __ThePinData { __phantom: ::std::marker::PhantomData }
                 }
             }
 
@@ -868,8 +868,8 @@ macro_rules! __pin_data {
             struct __Unpin <'__pin, $($impl_generics)*>
             where $($whr)*
             {
-                __phantom_pin: ::core::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
-                __phantom: ::core::marker::PhantomData<
+                __phantom_pin: ::std::marker::PhantomData<fn(&'__pin ()) -> &'__pin ()>,
+                __phantom: ::std::marker::PhantomData<
                     fn($name<$($ty_generics)*>) -> $name<$($ty_generics)*>
                 >,
                 // Only the pinned fields.
@@ -877,9 +877,9 @@ macro_rules! __pin_data {
             }
 
             #[doc(hidden)]
-            impl<'__pin, $($impl_generics)*> ::core::marker::Unpin for $name<$($ty_generics)*>
+            impl<'__pin, $($impl_generics)*> ::std::marker::Unpin for $name<$($ty_generics)*>
             where
-                __Unpin<'__pin, $($ty_generics)*>: ::core::marker::Unpin,
+                __Unpin<'__pin, $($ty_generics)*>: ::std::marker::Unpin,
                 $($whr)*
             {}
 
@@ -907,7 +907,7 @@ macro_rules! __pin_data {
         // if it also implements `Drop`
         trait MustNotImplDrop {}
         #[allow(drop_bounds)]
-        impl<T: ::core::ops::Drop> MustNotImplDrop for T {}
+        impl<T: ::std::ops::Drop> MustNotImplDrop for T {}
         impl<$($impl_generics)*> MustNotImplDrop for $name<$($ty_generics)*>
         where $($whr)* {}
         // We also take care to prevent users from writing a useless `PinnedDrop` implementation.
@@ -929,13 +929,13 @@ macro_rules! __pin_data {
         @where($($whr:tt)*),
         @pinned_drop(PinnedDrop),
     ) => {
-        impl<$($impl_generics)*> ::core::ops::Drop for $name<$($ty_generics)*>
+        impl<$($impl_generics)*> ::std::ops::Drop for $name<$($ty_generics)*>
         where $($whr)*
         {
             fn drop(&mut self) {
                 // SAFETY: Since this is a destructor, `self` will not move after this function
                 // terminates, since it is inaccessible.
-                let pinned = unsafe { ::core::pin::Pin::new_unchecked(self) };
+                let pinned = unsafe { ::std::pin::Pin::new_unchecked(self) };
                 // SAFETY: Since this is a drop function, we can create this token to call the
                 // pinned destructor of this type.
                 let token = unsafe { $crate::init::__internal::OnlyCallFromDrop::new() };
@@ -979,7 +979,7 @@ macro_rules! __pin_data {
                     self,
                     slot: *mut $p_type,
                     init: impl $crate::init::PinInit<$p_type, E>,
-                ) -> ::core::result::Result<(), E> {
+                ) -> ::std::result::Result<(), E> {
                     unsafe { $crate::init::PinInit::__pinned_init(init, slot) }
                 }
             )*
@@ -989,7 +989,7 @@ macro_rules! __pin_data {
                     self,
                     slot: *mut $type,
                     init: impl $crate::init::Init<$type, E>,
-                ) -> ::core::result::Result<(), E> {
+                ) -> ::std::result::Result<(), E> {
                     unsafe { $crate::init::Init::__init(init, slot) }
                 }
             )*
@@ -1127,12 +1127,12 @@ macro_rules! __init_internal {
                         // Ensure that the struct is indeed `Zeroable`.
                         assert_zeroable(slot);
                         // SAFETY: The type implements `Zeroable` by the check above.
-                        unsafe { ::core::ptr::write_bytes(slot, 0, 1) };
+                        unsafe { ::std::ptr::write_bytes(slot, 0, 1) };
                         $init_zeroed // This will be `()` if set.
                     })?
                     // Create the `this` so it can be referenced by the user inside of the
                     // expressions creating the individual fields.
-                    $(let $this = unsafe { ::core::ptr::NonNull::new_unchecked(slot) };)?
+                    $(let $this = unsafe { ::std::ptr::NonNull::new_unchecked(slot) };)?
                     // Initialize every field.
                     $crate::__init_internal!(init_slot($($use_data)?):
                         @data(data),
@@ -1156,7 +1156,7 @@ macro_rules! __init_internal {
                 Ok(__InitOk)
             }
         );
-        let init = move |slot| -> ::core::result::Result<(), $err> {
+        let init = move |slot| -> ::std::result::Result<(), $err> {
             init(slot).map(|__InitOk| ())
         };
         let init = unsafe { $crate::init::$construct_closure::<_, $err>(init) };
@@ -1170,7 +1170,7 @@ macro_rules! __init_internal {
     ) => {
         // Endpoint of munching, no fields are left. If execution reaches this point, all fields
         // have been initialized. Therefore we can now dismiss the guards by forgetting them.
-        $(::core::mem::forget($guards);)*
+        $(::std::mem::forget($guards);)*
     };
     (init_slot($use_data:ident): // `use_data` is present, so we use the `data` to init fields.
         @data($data:ident),
@@ -1185,7 +1185,7 @@ macro_rules! __init_internal {
         // SAFETY: `slot` is valid, because we are inside of an initializer closure, we
         // return when an error/panic occurs.
         // We also use the `data` to require the correct trait (`Init` or `PinInit`) for `$field`.
-        unsafe { $data.$field(::core::ptr::addr_of_mut!((*$slot).$field), init)? };
+        unsafe { $data.$field(::std::ptr::addr_of_mut!((*$slot).$field), init)? };
         // Create the drop guard:
         //
         // We rely on macro hygiene to make it impossible for users to access this local variable.
@@ -1193,7 +1193,7 @@ macro_rules! __init_internal {
         ::kernel::macros::paste! {
             // SAFETY: We forget the guard later when initialization has succeeded.
             let [<$field>] = unsafe {
-                $crate::init::__internal::DropGuard::new(::core::ptr::addr_of_mut!((*$slot).$field))
+                $crate::init::__internal::DropGuard::new(::std::ptr::addr_of_mut!((*$slot).$field))
             };
 
             $crate::__init_internal!(init_slot($use_data):
@@ -1216,7 +1216,7 @@ macro_rules! __init_internal {
         //
         // SAFETY: `slot` is valid, because we are inside of an initializer closure, we
         // return when an error/panic occurs.
-        unsafe { $crate::init::Init::__init(init, ::core::ptr::addr_of_mut!((*$slot).$field))? };
+        unsafe { $crate::init::Init::__init(init, ::std::ptr::addr_of_mut!((*$slot).$field))? };
         // Create the drop guard:
         //
         // We rely on macro hygiene to make it impossible for users to access this local variable.
@@ -1224,7 +1224,7 @@ macro_rules! __init_internal {
         ::kernel::macros::paste! {
             // SAFETY: We forget the guard later when initialization has succeeded.
             let [<$field>] = unsafe {
-                $crate::init::__internal::DropGuard::new(::core::ptr::addr_of_mut!((*$slot).$field))
+                $crate::init::__internal::DropGuard::new(::std::ptr::addr_of_mut!((*$slot).$field))
             };
 
             $crate::__init_internal!(init_slot():
@@ -1247,7 +1247,7 @@ macro_rules! __init_internal {
             // Initialize the field.
             //
             // SAFETY: The memory at `slot` is uninitialized.
-            unsafe { ::core::ptr::write(::core::ptr::addr_of_mut!((*$slot).$field), $field) };
+            unsafe { ::std::ptr::write(::std::ptr::addr_of_mut!((*$slot).$field), $field) };
         }
         // Create the drop guard:
         //
@@ -1256,7 +1256,7 @@ macro_rules! __init_internal {
         ::kernel::macros::paste! {
             // SAFETY: We forget the guard later when initialization has succeeded.
             let [<$field>] = unsafe {
-                $crate::init::__internal::DropGuard::new(::core::ptr::addr_of_mut!((*$slot).$field))
+                $crate::init::__internal::DropGuard::new(::std::ptr::addr_of_mut!((*$slot).$field))
             };
 
             $crate::__init_internal!(init_slot($($use_data)?):
@@ -1281,17 +1281,17 @@ macro_rules! __init_internal {
         // get the correct type inference here:
         #[allow(unused_assignments)]
         unsafe {
-            let mut zeroed = ::core::mem::zeroed();
+            let mut zeroed = ::std::mem::zeroed();
             // We have to use type inference here to make zeroed have the correct type. This does
             // not get executed, so it has no effect.
-            ::core::ptr::write($slot, zeroed);
-            zeroed = ::core::mem::zeroed();
+            ::std::ptr::write($slot, zeroed);
+            zeroed = ::std::mem::zeroed();
             // Here we abuse `paste!` to retokenize `$t`. Declarative macros have some internal
             // information that is associated to already parsed fragments, so a path fragment
             // cannot be used in this position. Doing the retokenization results in valid rust
             // code.
             ::kernel::macros::paste!(
-                ::core::ptr::write($slot, $t {
+                ::std::ptr::write($slot, $t {
                     $($acc)*
                     ..zeroed
                 });
@@ -1313,7 +1313,7 @@ macro_rules! __init_internal {
             // cannot be used in this position. Doing the retokenization results in valid rust
             // code.
             ::kernel::macros::paste!(
-                ::core::ptr::write($slot, $t {
+                ::std::ptr::write($slot, $t {
                     $($acc)*
                 });
             );
@@ -1329,7 +1329,7 @@ macro_rules! __init_internal {
             @slot($slot),
             @type_name($t),
             @munch_fields($($rest)*),
-            @acc($($acc)* $field: ::core::panic!(),),
+            @acc($($acc)* $field: ::std::panic!(),),
         );
     };
     (make_initializer:
@@ -1342,7 +1342,7 @@ macro_rules! __init_internal {
             @slot($slot),
             @type_name($t),
             @munch_fields($($rest)*),
-            @acc($($acc)* $field: ::core::panic!(),),
+            @acc($($acc)* $field: ::std::panic!(),),
         );
     };
 }
@@ -1372,7 +1372,7 @@ macro_rules! __derive_zeroable {
             $($($whr)*)?
         {}
         const _: () = {
-            fn assert_zeroable<T: ?::core::marker::Sized + $crate::init::Zeroable>() {}
+            fn assert_zeroable<T: ?::std::marker::Sized + $crate::init::Zeroable>() {}
             fn ensure_zeroable<$($impl_generics)*>()
                 where $($($whr)*)?
             {

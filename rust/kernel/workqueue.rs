@@ -135,10 +135,10 @@
 //! C header: [`include/linux/workqueue.h`](../../../../include/linux/workqueue.h)
 
 use crate::{bindings, prelude::*, sync::Arc, sync::LockClassKey, types::Opaque};
-use alloc::alloc::AllocError;
-use alloc::boxed::Box;
-use core::marker::PhantomData;
-use core::pin::Pin;
+use std::alloc::AllocError;
+use std::boxed::Box;
+use std::marker::PhantomData;
+use std::pin::Pin;
 
 /// Creates a [`Work`] initialiser with the given name and a newly-created lock class.
 #[macro_export]
@@ -386,7 +386,7 @@ impl<T: ?Sized, const ID: u64> Work<T, ID> {
         //
         // A pointer cast would also be ok due to `#[repr(transparent)]`. We use `addr_of!` so that
         // the compiler does not complain that the `work` field is unused.
-        unsafe { Opaque::raw_get(core::ptr::addr_of!((*ptr).work)) }
+        unsafe { Opaque::raw_get(std::ptr::addr_of!((*ptr).work)) }
     }
 }
 
@@ -497,13 +497,13 @@ macro_rules! impl_has_work {
         // SAFETY: The implementation of `raw_get_work` only compiles if the field has the right
         // type.
         unsafe impl$(<$($implarg),*>)? $crate::workqueue::HasWork<$work_type $(, $id)?> for $self $(<$($selfarg),*>)? {
-            const OFFSET: usize = ::core::mem::offset_of!(Self, $field) as usize;
+            const OFFSET: usize = ::std::mem::offset_of!(Self, $field) as usize;
 
             #[inline]
             unsafe fn raw_get_work(ptr: *mut Self) -> *mut $crate::workqueue::Work<$work_type $(, $id)?> {
                 // SAFETY: The caller promises that the pointer is not dangling.
                 unsafe {
-                    ::core::ptr::addr_of_mut!((*ptr).$field)
+                    ::std::ptr::addr_of_mut!((*ptr).$field)
                 }
             }
         }
@@ -602,7 +602,7 @@ where
         if !queue_work_on(work_ptr) {
             // SAFETY: This method requires exclusive ownership of the box, so it cannot be in a
             // workqueue.
-            unsafe { ::core::hint::unreachable_unchecked() }
+            unsafe { ::std::hint::unreachable_unchecked() }
         }
     }
 }

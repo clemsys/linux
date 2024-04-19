@@ -6,7 +6,7 @@
 //!
 //! Reference: <https://www.kernel.org/doc/html/latest/core-api/printk-basics.html>
 
-use core::{
+use std::{
     ffi::{c_char, c_void},
     fmt,
 };
@@ -23,7 +23,7 @@ unsafe extern "C" fn rust_fmt_argument(
     end: *mut c_char,
     ptr: *const c_void,
 ) -> *mut c_char {
-    use fmt::Write;
+    use std::fmt::Write;
     // SAFETY: The C contract guarantees that `buf` is valid if it's less than `end`.
     let mut w = unsafe { RawFormatter::from_ptrs(buf.cast(), end.cast()) };
     let _ = w.write_fmt(unsafe { *(ptr as *const fmt::Arguments<'_>) });

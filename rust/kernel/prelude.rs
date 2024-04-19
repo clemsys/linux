@@ -12,10 +12,10 @@
 //! ```
 
 #[doc(no_inline)]
-pub use core::pin::Pin;
+pub use std::pin::Pin;
 
 #[doc(no_inline)]
-pub use alloc::{boxed::Box, vec::Vec};
+pub use std::{boxed::Box, vec::Vec};
 
 #[doc(no_inline)]
 pub use macros::{module, pin_data, pinned_drop, vtable, Zeroable};

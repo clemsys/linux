@@ -4,13 +4,13 @@
 //!
 //! C header: [`include/linux/blk_types.h`](../../include/linux/blk_types.h)
 
-use core::fmt;
-use core::ptr::NonNull;
+use std::fmt;
+use std::ptr::NonNull;
 
 mod vec;
 
-pub use vec::BioSegmentIterator;
-pub use vec::Segment;
+pub use self::vec::BioSegmentIterator;
+pub use self::vec::Segment;
 
 /// A wrapper around a `struct bio` pointer
 ///
@@ -19,7 +19,7 @@ pub use vec::Segment;
 /// First field must alwyas be a valid pointer to a valid `struct bio`.
 pub struct Bio<'a>(
     NonNull<crate::bindings::bio>,
-    core::marker::PhantomData<&'a ()>,
+    std::marker::PhantomData<&'a ()>,
 );
 
 impl<'a> Bio<'a> {
@@ -50,7 +50,7 @@ impl<'a> Bio<'a> {
     fn next(&self) -> Option<Bio<'a>> {
         // SAFETY: self.0 is always a valid pointer
         let next = unsafe { (*self.get_raw()).bi_next };
-        Some(Self(NonNull::new(next)?, core::marker::PhantomData))
+        Some(Self(NonNull::new(next)?, std::marker::PhantomData))
     }
 
     /// Return the raw pointer of the wrapped `struct bio`
@@ -63,11 +63,11 @@ impl<'a> Bio<'a> {
     /// pointer is not null.
     #[inline(always)]
     pub(crate) unsafe fn from_raw(ptr: *mut bindings::bio) -> Option<Bio<'a>> {
-        Some(Self(NonNull::new(ptr)?, core::marker::PhantomData))
+        Some(Self(NonNull::new(ptr)?, std::marker::PhantomData))
     }
 }
 
-impl core::fmt::Display for Bio<'_> {
+impl std::fmt::Display for Bio<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Bio {:?}", self.0.as_ptr())
     }
@@ -78,7 +78,7 @@ pub struct BioIterator<'a> {
     pub(crate) bio: Option<Bio<'a>>,
 }
 
-impl<'a> core::iter::Iterator for BioIterator<'a> {
+impl<'a> std::iter::Iterator for BioIterator<'a> {
     type Item = Bio<'a>;
 
     #[inline(always)]

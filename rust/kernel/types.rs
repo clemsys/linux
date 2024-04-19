@@ -3,8 +3,8 @@
 //! Kernel types.
 
 use crate::init::{self, PinInit};
-use alloc::boxed::Box;
-use core::{
+use std::boxed::Box;
+use std::{
     cell::UnsafeCell,
     marker::{PhantomData, PhantomPinned},
     mem::MaybeUninit,
@@ -30,7 +30,7 @@ pub trait ForeignOwnable: Sized {
     /// Converts a Rust-owned object to a foreign-owned one.
     ///
     /// The foreign representation is a pointer to void.
-    fn into_foreign(self) -> *const core::ffi::c_void;
+    fn into_foreign(self) -> *const std::ffi::c_void;
 
     /// Converts a foreign-owned object back to a Rust-owned one.
     ///
@@ -40,7 +40,7 @@ pub trait ForeignOwnable: Sized {
     /// must not be passed to `from_foreign` more than once.
     ///
     /// [`into_foreign`]: Self::into_foreign
-    unsafe fn from_foreign(ptr: *const core::ffi::c_void) -> Self;
+    unsafe fn from_foreign(ptr: *const std::ffi::c_void) -> Self;
 
     /// Borrows a foreign-owned object immutably.
     ///
@@ -55,7 +55,7 @@ pub trait ForeignOwnable: Sized {
     ///
     /// [`into_foreign`]: Self::into_foreign
     /// [`from_foreign`]: Self::from_foreign
-    unsafe fn borrow<'a>(ptr: *const core::ffi::c_void) -> Self::Borrowed<'a>;
+    unsafe fn borrow<'a>(ptr: *const std::ffi::c_void) -> Self::Borrowed<'a>;
 
     /// Borrows a foreign-owned object mutably.
     ///
@@ -84,7 +84,7 @@ pub trait ForeignOwnable: Sized {
     /// [`from_foreign`]: Self::from_foreign
     /// [`borrow`]: Self::borrow
     /// [`Arc`]: crate::sync::Arc
-    unsafe fn borrow_mut<'a>(ptr: *const core::ffi::c_void) -> Self::BorrowedMut<'a>;
+    unsafe fn borrow_mut<'a>(ptr: *const std::ffi::c_void) -> Self::BorrowedMut<'a>;
 }
 
 impl<T: 'static> ForeignOwnable for Box<T> {
@@ -92,25 +92,25 @@ impl<T: 'static> ForeignOwnable for Box<T> {
     type BorrowedMut<'a> = &'a mut T;
 
     #[inline(always)]
-    fn into_foreign(self) -> *const core::ffi::c_void {
+    fn into_foreign(self) -> *const std::ffi::c_void {
         Box::into_raw(self) as _
     }
 
-    unsafe fn from_foreign(ptr: *const core::ffi::c_void) -> Self {
+    unsafe fn from_foreign(ptr: *const std::ffi::c_void) -> Self {
         // SAFETY: The safety requirements of this function ensure that `ptr` comes from a previous
         // call to `Self::into_foreign`.
         unsafe { Box::from_raw(ptr as _) }
     }
 
     #[inline(always)]
-    unsafe fn borrow<'a>(ptr: *const core::ffi::c_void) -> &'a T {
+    unsafe fn borrow<'a>(ptr: *const std::ffi::c_void) -> &'a T {
         // SAFETY: The safety requirements of this method ensure that the object remains alive and
         // immutable for the duration of 'a.
         unsafe { &*ptr.cast() }
     }
 
     #[inline(always)]
-    unsafe fn borrow_mut<'a>(ptr: *const core::ffi::c_void) -> &'a mut T {
+    unsafe fn borrow_mut<'a>(ptr: *const std::ffi::c_void) -> &'a mut T {
         // SAFETY: The safety requirements of this method ensure that the pointer is valid and that
         // nothing else will access the value for the duration of 'a.
         unsafe { &mut *ptr.cast_mut().cast() }
@@ -122,43 +122,43 @@ impl ForeignOwnable for () {
     type BorrowedMut<'a> = ();
 
     #[inline(always)]
-    fn into_foreign(self) -> *const core::ffi::c_void {
-        core::ptr::NonNull::dangling().as_ptr()
+    fn into_foreign(self) -> *const std::ffi::c_void {
+        std::ptr::NonNull::dangling().as_ptr()
     }
 
-    unsafe fn from_foreign(_: *const core::ffi::c_void) -> Self {}
+    unsafe fn from_foreign(_: *const std::ffi::c_void) -> Self {}
 
     #[inline(always)]
-    unsafe fn borrow<'a>(_: *const core::ffi::c_void) -> Self::Borrowed<'a> {}
+    unsafe fn borrow<'a>(_: *const std::ffi::c_void) -> Self::Borrowed<'a> {}
 
     #[inline(always)]
-    unsafe fn borrow_mut<'a>(_: *const core::ffi::c_void) -> Self::BorrowedMut<'a> {}
+    unsafe fn borrow_mut<'a>(_: *const std::ffi::c_void) -> Self::BorrowedMut<'a> {}
 }
 
 impl<T: ForeignOwnable + Deref> ForeignOwnable for Pin<T> {
     type Borrowed<'a> = T::Borrowed<'a>;
     type BorrowedMut<'a> = T::BorrowedMut<'a>;
 
-    fn into_foreign(self) -> *const core::ffi::c_void {
+    fn into_foreign(self) -> *const std::ffi::c_void {
         // SAFETY: We continue to treat the pointer as pinned by returning just a pointer to it to
         // the caller.
         let inner = unsafe { Pin::into_inner_unchecked(self) };
         inner.into_foreign()
     }
 
-    unsafe fn borrow<'a>(ptr: *const core::ffi::c_void) -> Self::Borrowed<'a> {
+    unsafe fn borrow<'a>(ptr: *const std::ffi::c_void) -> Self::Borrowed<'a> {
         // SAFETY: The safety requirements for this function are the same as the ones for
         // `T::borrow`.
         unsafe { T::borrow(ptr) }
     }
 
-    unsafe fn borrow_mut<'a>(ptr: *const core::ffi::c_void) -> Self::BorrowedMut<'a> {
+    unsafe fn borrow_mut<'a>(ptr: *const std::ffi::c_void) -> Self::BorrowedMut<'a> {
         // SAFETY: The safety requirements for this function are the same as the ones for
         // `T::borrow_mut`.
         unsafe { T::borrow_mut(ptr) }
     }
 
-    unsafe fn from_foreign(p: *const core::ffi::c_void) -> Self {
+    unsafe fn from_foreign(p: *const std::ffi::c_void) -> Self {
         // SAFETY: The object was originally pinned.
         // The passed pointer comes from a previous call to `T::into_foreign`.
         unsafe { Pin::new_unchecked(T::from_foreign(p)) }
@@ -323,7 +323,7 @@ impl<T> Opaque<T> {
         // SAFETY: We contain a `MaybeUninit`, so it is OK for the `init_func` to not fully
         // initialize the `T`.
         unsafe {
-            init::pin_init_from_closure::<_, ::core::convert::Infallible>(move |slot| {
+            init::pin_init_from_closure::<_, ::std::convert::Infallible>(move |slot| {
                 init_func(Self::raw_get(slot));
                 Ok(())
             })

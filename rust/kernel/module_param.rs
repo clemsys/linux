@@ -6,7 +6,7 @@
 
 use crate::error::{code::*, from_result};
 use crate::str::{CStr, Formatter};
-use core::fmt::Write;
+use std::fmt::Write;
 
 /// Types that can be used for module parameters.
 ///
@@ -16,7 +16,7 @@ use core::fmt::Write;
 /// bytes (including an additional null terminator).
 ///
 /// [`PAGE_SIZE`]: `crate::PAGE_SIZE`
-pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
+pub trait ModuleParam: std::fmt::Display + std::marker::Sized {
     /// The `ModuleParam` will be used by the kernel module through this type.
     ///
     /// This may differ from `Self` if, for example, `Self` needs to track
@@ -66,9 +66,9 @@ pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
     /// If `val` is non-null then it must point to a valid null-terminated
     /// string. The `arg` field of `param` must be an instance of `Self`.
     unsafe extern "C" fn set_param(
-        val: *const core::ffi::c_char,
+        val: *const std::ffi::c_char,
         param: *const crate::bindings::kernel_param,
-    ) -> core::ffi::c_int {
+    ) -> std::ffi::c_int {
         let arg = if val.is_null() {
             None
         } else {
@@ -77,7 +77,7 @@ pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
         match Self::try_from_param_arg(arg) {
             Some(new_value) => {
                 let old_value = unsafe { (*param).__bindgen_anon_1.arg as *mut Self };
-                let _ = unsafe { core::ptr::replace(old_value, new_value) };
+                let _ = unsafe { std::ptr::replace(old_value, new_value) };
                 0
             }
             None => EINVAL.to_errno(),
@@ -93,9 +93,9 @@ pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
     /// `buf` must be a buffer of length at least `kernel::PAGE_SIZE` that is
     /// writeable. The `arg` field of `param` must be an instance of `Self`.
     unsafe extern "C" fn get_param(
-        buf: *mut core::ffi::c_char,
+        buf: *mut std::ffi::c_char,
         param: *const crate::bindings::kernel_param,
-    ) -> core::ffi::c_int {
+    ) -> std::ffi::c_int {
         from_result(|| {
             // SAFETY: The C contracts guarantees that the buffer is at least `PAGE_SIZE` bytes.
             let mut f = unsafe { Formatter::from_buffer(buf.cast(), crate::PAGE_SIZE as usize) };
@@ -111,8 +111,8 @@ pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
     /// # Safety
     ///
     /// The `arg` field of `param` must be an instance of `Self`.
-    unsafe extern "C" fn free(arg: *mut core::ffi::c_void) {
-        unsafe { core::ptr::drop_in_place(arg as *mut Self) };
+    unsafe extern "C" fn free(arg: *mut std::ffi::c_void) {
+        unsafe { std::ptr::drop_in_place(arg as *mut Self) };
     }
 }
 
@@ -127,10 +127,10 @@ pub trait ModuleParam: core::fmt::Display + core::marker::Sized {
 /// [`kstrtol()`]: https://www.kernel.org/doc/html/latest/core-api/kernel-api.html#c.kstrtol
 /// [`kstrtoul()`]: https://www.kernel.org/doc/html/latest/core-api/kernel-api.html#c.kstrtoul
 trait ParseInt: Sized {
-    fn from_str_radix(src: &str, radix: u32) -> Result<Self, core::num::ParseIntError>;
+    fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError>;
     fn checked_neg(self) -> Option<Self>;
 
-    fn from_str_unsigned(src: &str) -> Result<Self, core::num::ParseIntError> {
+    fn from_str_unsigned(src: &str) -> Result<Self, std::num::ParseIntError> {
         let (radix, digits) = if let Some(n) = src.strip_prefix("0x") {
             (16, n)
         } else if let Some(n) = src.strip_prefix("0X") {
@@ -164,7 +164,7 @@ trait ParseInt: Sized {
 macro_rules! impl_parse_int {
     ($ty:ident) => {
         impl ParseInt for $ty {
-            fn from_str_radix(src: &str, radix: u32) -> Result<Self, core::num::ParseIntError> {
+            fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError> {
                 $ty::from_str_radix(src, radix)
             }
 
@@ -195,7 +195,7 @@ macro_rules! impl_module_param {
 
             fn try_from_param_arg(arg: Option<&'static [u8]>) -> Option<Self> {
                 let bytes = arg?;
-                let utf8 = core::str::from_utf8(bytes).ok()?;
+                let utf8 = std::str::from_utf8(bytes).ok()?;
                 <$ty as crate::module_param::ParseInt>::from_str(utf8)
             }
 
@@ -351,7 +351,7 @@ make_param_ops!(
 ///
 /// The first `self.used` elements of `self.values` are initialized.
 pub struct ArrayParam<T, const N: usize> {
-    values: [core::mem::MaybeUninit<T>; N],
+    values: [std::mem::MaybeUninit<T>; N],
     used: usize,
 }
 
@@ -359,9 +359,7 @@ impl<T, const N: usize> ArrayParam<T, { N }> {
     fn values(&self) -> &[T] {
         // SAFETY: The invariant maintained by `ArrayParam` allows us to cast
         // the first `self.used` elements to `T`.
-        unsafe {
-            &*(&self.values[0..self.used] as *const [core::mem::MaybeUninit<T>] as *const [T])
-        }
+        unsafe { &*(&self.values[0..self.used] as *const [std::mem::MaybeUninit<T>] as *const [T]) }
     }
 }
 
@@ -370,7 +368,7 @@ impl<T: Copy, const N: usize> ArrayParam<T, { N }> {
         // INVARIANT: The first `self.used` elements of `self.values` are
         // initialized.
         ArrayParam {
-            values: [core::mem::MaybeUninit::uninit(); N],
+            values: [std::mem::MaybeUninit::uninit(); N],
             used: 0,
         }
     }
@@ -379,7 +377,7 @@ impl<T: Copy, const N: usize> ArrayParam<T, { N }> {
         if self.used < N {
             // INVARIANT: The first `self.used` elements of `self.values` are
             // initialized.
-            self.values[self.used] = core::mem::MaybeUninit::new(val);
+            self.values[self.used] = std::mem::MaybeUninit::new(val);
             self.used += 1;
         }
     }
@@ -398,8 +396,8 @@ impl<T: Copy, const N: usize> ArrayParam<T, { N }> {
     }
 }
 
-impl<T: core::fmt::Display, const N: usize> core::fmt::Display for ArrayParam<T, { N }> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: std::fmt::Display, const N: usize> std::fmt::Display for ArrayParam<T, { N }> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for val in self.values() {
             write!(f, "{},", val)?;
         }
@@ -407,7 +405,7 @@ impl<T: core::fmt::Display, const N: usize> core::fmt::Display for ArrayParam<T,
     }
 }
 
-impl<T: Copy + core::fmt::Display + ModuleParam, const N: usize> ModuleParam
+impl<T: Copy + std::fmt::Display + ModuleParam, const N: usize> ModuleParam
     for ArrayParam<T, { N }>
 {
     type Value = [T];
@@ -447,7 +445,7 @@ pub enum StringParam {
     ///
     /// The value needs to be freed when the parameter is reset or the module is
     /// unloaded.
-    Owned(alloc::vec::Vec<u8>),
+    Owned(std::vec::Vec<u8>),
 }
 
 impl StringParam {
@@ -459,10 +457,10 @@ impl StringParam {
     }
 }
 
-impl core::fmt::Display for StringParam {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl std::fmt::Display for StringParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let bytes = self.bytes();
-        match core::str::from_utf8(bytes) {
+        match std::str::from_utf8(bytes) {
             Ok(utf8) => write!(f, "{}", utf8),
             Err(_) => write!(f, "{:?}", bytes),
         }
@@ -479,8 +477,8 @@ impl ModuleParam for StringParam {
         let slab_available = unsafe { crate::bindings::slab_is_available() };
         arg.and_then(|arg| {
             if slab_available {
-                let mut vec = alloc::vec::Vec::new();
-                vec.try_extend_from_slice(arg).ok()?;
+                let mut vec = Vec::new();
+                vec.extend_from_slice(arg);
                 Some(StringParam::Owned(vec))
             } else {
                 Some(StringParam::Ref(arg))

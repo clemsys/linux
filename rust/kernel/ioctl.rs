@@ -31,13 +31,13 @@ pub const fn _IO(ty: u32, nr: u32) -> u32 {
 /// Build an ioctl number for an read-only ioctl.
 #[inline(always)]
 pub const fn _IOR<T>(ty: u32, nr: u32) -> u32 {
-    _IOC(uapi::_IOC_READ, ty, nr, core::mem::size_of::<T>())
+    _IOC(uapi::_IOC_READ, ty, nr, std::mem::size_of::<T>())
 }
 
 /// Build an ioctl number for an write-only ioctl.
 #[inline(always)]
 pub const fn _IOW<T>(ty: u32, nr: u32) -> u32 {
-    _IOC(uapi::_IOC_WRITE, ty, nr, core::mem::size_of::<T>())
+    _IOC(uapi::_IOC_WRITE, ty, nr, std::mem::size_of::<T>())
 }
 
 /// Build an ioctl number for a read-write ioctl.
@@ -47,7 +47,7 @@ pub const fn _IOWR<T>(ty: u32, nr: u32) -> u32 {
         uapi::_IOC_READ | uapi::_IOC_WRITE,
         ty,
         nr,
-        core::mem::size_of::<T>(),
+        std::mem::size_of::<T>(),
     )
 }
 

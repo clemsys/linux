@@ -23,7 +23,6 @@
 #![feature(compiler_builtins)]
 #![compiler_builtins]
 #![no_builtins]
-#![no_std]
 
 macro_rules! define_panicking_intrinsics(
     ($reason: tt, { $($ident: ident, )* }) => {

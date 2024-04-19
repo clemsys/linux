@@ -6,11 +6,11 @@
 //! see <https://github.com/rust-lang/rust/blob/master/COPYRIGHT>.
 
 use crate::sync::{arc::ArcInner, Arc};
-use core::any::Any;
+use std::any::Any;
 
 impl Arc<dyn Any + Send + Sync> {
     /// Attempt to downcast the `Arc<dyn Any + Send + Sync>` to a concrete type.
-    pub fn downcast<T>(self) -> core::result::Result<Arc<T>, Self>
+    pub fn downcast<T>(self) -> std::result::Result<Arc<T>, Self>
     where
         T: Any + Send + Sync,
     {
@@ -18,7 +18,7 @@ impl Arc<dyn Any + Send + Sync> {
             // SAFETY: We have just checked that the type is correct, so we can cast the pointer.
             unsafe {
                 let ptr = self.ptr.cast::<ArcInner<T>>();
-                core::mem::forget(self);
+                std::mem::forget(self);
                 Ok(Arc::from_inner(ptr))
             }
         } else {

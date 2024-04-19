@@ -146,7 +146,7 @@ macro_rules! dbg {
     // `$val` expression could be a block (`{ .. }`), in which case the `pr_info!`
     // will be malformed.
     () => {
-        $crate::pr_info!("[{}:{}]\n", ::core::file!(), ::core::line!())
+        $crate::pr_info!("[{}:{}]\n", ::std::file!(), ::std::line!())
     };
     ($val:expr $(,)?) => {
         // Use of `match` here is intentional because it affects the lifetimes
@@ -154,7 +154,7 @@ macro_rules! dbg {
         match $val {
             tmp => {
                 $crate::pr_info!("[{}:{}] {} = {:#?}\n",
-                    ::core::file!(), ::core::line!(), ::core::stringify!($val), &tmp);
+                    ::std::file!(), ::std::line!(), ::std::stringify!($val), &tmp);
                 tmp
             }
         }

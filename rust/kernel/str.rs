@@ -2,10 +2,11 @@
 
 //! String representations.
 
-use alloc::alloc::AllocError;
-use alloc::vec::Vec;
-use core::fmt::{self, Write};
-use core::ops::{self, Deref, Index};
+use std::alloc::AllocError;
+use std::convert::TryFrom;
+use std::fmt::{self, Write};
+use std::ops::{self, Deref, Index};
+use std::vec::Vec;
 
 use crate::{
     bindings,
@@ -76,7 +77,7 @@ impl CStr {
         // We add a `unreachable_unchecked` here to hint the optimizer that
         // the value returned from this function is non-zero.
         if self.0.is_empty() {
-            unsafe { core::hint::unreachable_unchecked() };
+            unsafe { std::hint::unreachable_unchecked() };
         }
         self.0.len()
     }
@@ -95,12 +96,12 @@ impl CStr {
     /// last at least `'a`. When `CStr` is alive, the memory pointed by `ptr`
     /// must not be mutated.
     #[inline]
-    pub unsafe fn from_char_ptr<'a>(ptr: *const core::ffi::c_char) -> &'a Self {
+    pub unsafe fn from_char_ptr<'a>(ptr: *const std::ffi::c_char) -> &'a Self {
         // SAFETY: The safety precondition guarantees `ptr` is a valid pointer
         // to a `NUL`-terminated C string.
         let len = unsafe { bindings::strlen(ptr) } + 1;
         // SAFETY: Lifetime guaranteed by the safety precondition.
-        let bytes = unsafe { core::slice::from_raw_parts(ptr as _, len as _) };
+        let bytes = unsafe { std::slice::from_raw_parts(ptr as _, len as _) };
         // SAFETY: As `len` is returned by `strlen`, `bytes` does not contain interior `NUL`.
         // As we have added 1 to `len`, the last byte is known to be `NUL`.
         unsafe { Self::from_bytes_with_nul_unchecked(bytes) }
@@ -140,12 +141,12 @@ impl CStr {
     #[inline]
     pub const unsafe fn from_bytes_with_nul_unchecked(bytes: &[u8]) -> &CStr {
         // SAFETY: Properties of `bytes` guaranteed by the safety precondition.
-        unsafe { core::mem::transmute(bytes) }
+        unsafe { std::mem::transmute(bytes) }
     }
 
     /// Returns a C pointer to the string.
     #[inline]
-    pub const fn as_char_ptr(&self) -> *const core::ffi::c_char {
+    pub const fn as_char_ptr(&self) -> *const std::ffi::c_char {
         self.0.as_ptr() as _
     }
 
@@ -175,8 +176,8 @@ impl CStr {
     /// assert_eq!(cstr.to_str(), Ok("foo"));
     /// ```
     #[inline]
-    pub fn to_str(&self) -> Result<&str, core::str::Utf8Error> {
-        core::str::from_utf8(self.as_bytes())
+    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(self.as_bytes())
     }
 
     /// Unsafely convert this [`CStr`] into a [`&str`], without checking for
@@ -198,7 +199,7 @@ impl CStr {
     /// ```
     #[inline]
     pub unsafe fn as_str_unchecked(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
+        unsafe { std::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
     /// Convert this [`CStr`] into a [`CString`] by allocating memory and
@@ -307,7 +308,7 @@ impl Index<ops::RangeFull> for CStr {
 }
 
 mod private {
-    use core::ops;
+    use std::ops;
 
     // Marker trait for index types that can be forward to `BStr`.
     pub trait CStrIndex {}
@@ -462,13 +463,13 @@ impl fmt::Write for RawFormatter {
         let pos_new = self.pos.saturating_add(s.len());
 
         // Amount that we can copy. `saturating_sub` ensures we get 0 if `pos` goes past `end`.
-        let len_to_copy = core::cmp::min(pos_new, self.end).saturating_sub(self.pos);
+        let len_to_copy = std::cmp::min(pos_new, self.end).saturating_sub(self.pos);
 
         if len_to_copy > 0 {
             // SAFETY: If `len_to_copy` is non-zero, then we know `pos` has not gone past `end`
             // yet, so it is valid for write per the type invariants.
             unsafe {
-                core::ptr::copy_nonoverlapping(
+                std::ptr::copy_nonoverlapping(
                     s.as_bytes().as_ptr(),
                     self.pos as *mut u8,
                     len_to_copy,
@@ -558,7 +559,7 @@ impl CString {
         let size = f.bytes_written();
 
         // Allocate a vector with the required number of bytes, and write to it.
-        let mut buf = Vec::try_with_capacity(size)?;
+        let mut buf = Vec::with_capacity(size);
         // SAFETY: The buffer stored in `buf` is at least of size `size` and is valid for writes.
         let mut f = unsafe { Formatter::from_buffer(buf.as_mut_ptr(), size) };
         f.write_fmt(args)?;
@@ -599,8 +600,7 @@ impl<'a> TryFrom<&'a CStr> for CString {
     fn try_from(cstr: &'a CStr) -> Result<CString, AllocError> {
         let mut buf = Vec::new();
 
-        buf.try_extend_from_slice(cstr.as_bytes_with_nul())
-            .map_err(|_| AllocError)?;
+        buf.extend_from_slice(cstr.as_bytes_with_nul());
 
         // INVARIANT: The `CStr` and `CString` types have the same invariants for
         // the string data, and we copied it over without changes.
@@ -611,5 +611,5 @@ impl<'a> TryFrom<&'a CStr> for CString {
 /// A convenience alias for [`core::format_args`].
 #[macro_export]
 macro_rules! fmt {
-    ($($f:tt)*) => ( core::format_args!($($f)*) )
+    ($($f:tt)*) => ( std::format_args!($($f)*) )
 }

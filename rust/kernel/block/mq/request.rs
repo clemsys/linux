@@ -9,7 +9,7 @@ use crate::{
     block::mq::Operations,
     error::{Error, Result},
 };
-use core::{marker::PhantomData, pin::Pin, ffi::c_void};
+use std::{ffi::c_void, marker::PhantomData, pin::Pin};
 
 use crate::block::bio::Bio;
 use crate::block::bio::BioIterator;

@@ -12,10 +12,10 @@ mod condvar;
 pub mod lock;
 mod locked_by;
 
-pub use arc::{Arc, ArcBorrow, UniqueArc};
-pub use condvar::CondVar;
-pub use lock::{mutex::Mutex, spinlock::SpinLock};
-pub use locked_by::LockedBy;
+pub use self::arc::{Arc, ArcBorrow, UniqueArc};
+pub use self::condvar::CondVar;
+pub use self::lock::{mutex::Mutex, spinlock::SpinLock};
+pub use self::locked_by::LockedBy;
 
 /// Represents a lockdep class. It's a wrapper around C's `lock_class_key`.
 #[repr(transparent)]
@@ -52,7 +52,7 @@ macro_rules! static_lock_class {
 #[macro_export]
 macro_rules! optional_name {
     () => {
-        $crate::c_str!(::core::concat!(::core::file!(), ":", ::core::line!()))
+        $crate::c_str!(::std::concat!(::std::file!(), ":", ::std::line!()))
     };
     ($name:literal) => {
         $crate::c_str!($name)

@@ -446,7 +446,8 @@ KBUILD_USERLDFLAGS := $(USERLDFLAGS)
 
 # These flags apply to all Rust code in the tree, including the kernel and
 # host programs.
-export rust_common_flags := --edition=2021 \
+# MODIFIED BY CLEMSYS
+# export rust_common_flags := --edition=2021 \
 			    -Zbinary_dep_depinfo=y \
 			    -Dunsafe_op_in_unsafe_fn -Drust_2018_idioms \
 			    -Dunreachable_pub -Dnon_ascii_idents \
@@ -460,6 +461,7 @@ export rust_common_flags := --edition=2021 \
 			    -Dclippy::needless_continue \
 			    -Dclippy::no_mangle_with_rust_abi \
 			    -Wclippy::dbg_macro
+export rust_common_flags := --edition=2021
 
 KBUILD_HOSTCFLAGS   := $(KBUILD_USERHOSTCFLAGS) $(HOST_LFS_CFLAGS) $(HOSTCFLAGS)
 KBUILD_HOSTCXXFLAGS := -Wall -O2 $(HOST_LFS_CFLAGS) $(HOSTCXXFLAGS)
@@ -554,7 +556,8 @@ KBUILD_CFLAGS += -fno-PIE
 KBUILD_CFLAGS += -fno-strict-aliasing
 
 KBUILD_CPPFLAGS := -D__KERNEL__
-KBUILD_RUSTFLAGS := $(rust_common_flags) \
+# MODIFIED BY CLEMSYS
+# KBUILD_RUSTFLAGS := $(rust_common_flags) \
 		    --target=$(objtree)/scripts/target.json \
 		    -Cpanic=abort -Cembed-bitcode=n -Clto=n \
 		    -Cforce-unwind-tables=n -Ccodegen-units=1 \
@@ -562,6 +565,7 @@ KBUILD_RUSTFLAGS := $(rust_common_flags) \
 		    -Crelocation-model=static \
 		    -Zfunction-sections=n \
 		    -Dclippy::float_arithmetic
+KBUILD_RUSTFLAGS := $(rust_common_flags)
 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=

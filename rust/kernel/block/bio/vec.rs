@@ -8,8 +8,8 @@ use super::Bio;
 use crate::error::Result;
 use crate::folio::UniqueFolio;
 use crate::pages::Pages;
-use core::fmt;
-use core::mem::ManuallyDrop;
+use std::fmt;
+use std::mem::ManuallyDrop;
 
 #[inline(always)]
 fn mp_bvec_iter_offset(bvec: *const bindings::bio_vec, iter: &bindings::bvec_iter) -> u32 {
@@ -68,7 +68,7 @@ fn bvec_iter_offset(bvec: *const bindings::bio_vec, iter: &bindings::bvec_iter) 
 /// `bio_vec` must always be initialized and valid
 pub struct Segment<'a> {
     bio_vec: bindings::bio_vec,
-    _marker: core::marker::PhantomData<&'a ()>,
+    _marker: std::marker::PhantomData<&'a ()>,
 }
 
 impl Segment<'_> {
@@ -101,7 +101,7 @@ impl Segment<'_> {
         let src_page = ManuallyDrop::new(unsafe { Pages::<0>::from_raw(self.bio_vec.bv_page) });
         let src_map = src_page.kmap_local();
 
-        use core::ops::Deref;
+        use std::ops::Deref;
         let src: &[u8] = src_map.deref();
 
         // TODO: local map here
@@ -116,7 +116,11 @@ impl Segment<'_> {
 
     /// Copy data of this segment into `page`. Copyt no more than `limit_bytes` bytes.
     #[inline(always)]
-    pub fn copy_to_page_with_limit_atomic(&self, page: &mut Pages<0>, limit_bytes: usize) -> Result {
+    pub fn copy_to_page_with_limit_atomic(
+        &self,
+        page: &mut Pages<0>,
+        limit_bytes: usize,
+    ) -> Result {
         // SAFETY: self.bio_vec is valid and thus bv_page must be a valid
         // pointer to a `struct page`. We do not own the page, but we prevent
         // drop by wrapping the `Pages` in `ManuallyDrop`.
@@ -126,7 +130,7 @@ impl Segment<'_> {
         // TODO: Checck offset is within page - what guarantees does `bio_vec` provide?
         let ptr = unsafe { (our_map.get_ptr() as *const u8).add(self.offset()) };
 
-        let size = core::cmp::min(self.len(), limit_bytes);
+        let size = std::cmp::min(self.len(), limit_bytes);
         unsafe { page.write_atomic(ptr, self.offset(), size) }
     }
 
@@ -140,7 +144,7 @@ impl Segment<'_> {
         let mut dst_page = ManuallyDrop::new(unsafe { Pages::<0>::from_raw(self.bio_vec.bv_page) });
         // TODO: map_local
         let src_map = src.map_page(0)?;
-        use core::ops::Deref;
+        use std::ops::Deref;
         dst_page.copy_from_slice(src_map.deref())
     }
 
@@ -160,7 +164,7 @@ impl Segment<'_> {
     }
 }
 
-impl core::fmt::Display for Segment<'_> {
+impl std::fmt::Display for Segment<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -186,7 +190,7 @@ impl<'a> BioSegmentIterator<'a> {
     }
 }
 
-impl<'a> core::iter::Iterator for BioSegmentIterator<'a> {
+impl<'a> std::iter::Iterator for BioSegmentIterator<'a> {
     type Item = Segment<'a>;
 
     #[inline(always)]
@@ -215,7 +219,7 @@ impl<'a> core::iter::Iterator for BioSegmentIterator<'a> {
 
         Some(Segment {
             bio_vec: bio_vec_ret,
-            _marker: core::marker::PhantomData,
+            _marker: std::marker::PhantomData,
         })
     }
 }

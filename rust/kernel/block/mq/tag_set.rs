@@ -11,7 +11,7 @@ use crate::{
     sync::Arc,
     types::ForeignOwnable,
 };
-use core::{cell::UnsafeCell, convert::TryInto, marker::PhantomData};
+use std::{cell::UnsafeCell, convert::TryInto, marker::PhantomData};
 
 /// A wrapper for the C `struct blk_mq_tag_set`
 pub struct TagSet<T: Operations> {
@@ -40,7 +40,7 @@ impl<T: Operations> TagSet<T> {
         inner.timeout = 0; // 0 means default which is 30 * HZ in C
         inner.numa_node = bindings::NUMA_NO_NODE;
         inner.queue_depth = num_tags;
-        inner.cmd_size = core::mem::size_of::<T::RequestData>().try_into()?;
+        inner.cmd_size = std::mem::size_of::<T::RequestData>().try_into()?;
         inner.flags = bindings::BLK_MQ_F_SHOULD_MERGE;
         inner.driver_data = tagset_data.into_foreign() as _;
         inner.nr_maps = num_maps;

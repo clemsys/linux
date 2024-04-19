@@ -6,7 +6,7 @@
 //!
 //! Reference: <https://docs.kernel.org/dev-tools/kunit/index.html>
 
-use core::{ffi::c_void, fmt};
+use std::{ffi::c_void, fmt};
 
 /// Prints a KUnit error-level message.
 ///
@@ -41,8 +41,8 @@ pub fn info(args: fmt::Arguments<'_>) {
 }
 
 use crate::task::Task;
-use core::ops::Deref;
 use macros::kunit_tests;
+use std::ops::Deref;
 
 /// Asserts that a boolean expression is `true` at runtime.
 ///
@@ -61,7 +61,7 @@ macro_rules! kunit_assert {
             }
 
             static FILE: &'static $crate::str::CStr = $crate::c_str!($file);
-            static LINE: i32 = core::line!() as i32 - $diff;
+            static LINE: i32 = std::line!() as i32 - $diff;
             static CONDITION: &'static $crate::str::CStr = $crate::c_str!(stringify!($condition));
 
             // SAFETY: FFI call without safety requirements.
@@ -132,11 +132,11 @@ macro_rules! kunit_assert {
             unsafe {
                 $crate::bindings::__kunit_do_failed_assertion(
                     kunit_test,
-                    core::ptr::addr_of!(LOCATION.0),
+                    std::ptr::addr_of!(LOCATION.0),
                     $crate::bindings::kunit_assert_type_KUNIT_ASSERTION,
-                    core::ptr::addr_of!(ASSERTION.0.assert),
+                    std::ptr::addr_of!(ASSERTION.0.assert),
                     Some($crate::bindings::kunit_unary_assert_format),
-                    core::ptr::null(),
+                    std::ptr::null(),
                 );
             }
 
@@ -178,23 +178,27 @@ macro_rules! kunit_case {
     () => {
         $crate::bindings::kunit_case {
             run_case: None,
-            name: core::ptr::null_mut(),
+            name: std::ptr::null_mut(),
             generate_params: None,
-            attr: bindings::kunit_attributes { speed: bindings::kunit_speed_KUNIT_SPEED_UNSET },
+            attr: bindings::kunit_attributes {
+                speed: bindings::kunit_speed_KUNIT_SPEED_UNSET,
+            },
             status: $crate::bindings::kunit_status_KUNIT_SUCCESS,
-            module_name: core::ptr::null_mut(),
-            log: core::ptr::null_mut(),
+            module_name: std::ptr::null_mut(),
+            log: std::ptr::null_mut(),
         }
     };
     ($name:ident, $run_case:ident) => {
         $crate::bindings::kunit_case {
             run_case: Some($run_case),
-            name: $crate::c_str!(core::stringify!($name)).as_char_ptr(),
+            name: $crate::c_str!(std::stringify!($name)).as_char_ptr(),
             generate_params: None,
-            attr: bindings::kunit_attributes { speed: bindings::kunit_speed_KUNIT_SPEED_UNSET },
+            attr: bindings::kunit_attributes {
+                speed: bindings::kunit_speed_KUNIT_SPEED_UNSET,
+            },
             status: $crate::bindings::kunit_status_KUNIT_SUCCESS,
-            module_name: core::ptr::null_mut(),
-            log: core::ptr::null_mut(),
+            module_name: std::ptr::null_mut(),
+            log: std::ptr::null_mut(),
         }
     };
 }
@@ -226,7 +230,7 @@ macro_rules! kunit_unsafe_test_suite {
     ($name:ident, $test_cases:ident) => {
         const _: () = {
             static KUNIT_TEST_SUITE_NAME: [i8; 256] = {
-                let name_u8 = core::stringify!($name).as_bytes();
+                let name_u8 = std::stringify!($name).as_bytes();
                 let mut ret = [0; 256];
 
                 let mut i = 0;
@@ -239,18 +243,20 @@ macro_rules! kunit_unsafe_test_suite {
             };
 
             // SAFETY: `test_cases` is valid as it should be static.
-            static mut KUNIT_TEST_SUITE: core::cell::UnsafeCell<$crate::bindings::kunit_suite> =
-                core::cell::UnsafeCell::new($crate::bindings::kunit_suite {
+            static mut KUNIT_TEST_SUITE: std::cell::UnsafeCell<$crate::bindings::kunit_suite> =
+                std::cell::UnsafeCell::new($crate::bindings::kunit_suite {
                     name: KUNIT_TEST_SUITE_NAME,
                     test_cases: unsafe { $test_cases.as_mut_ptr() },
                     suite_init: None,
                     suite_exit: None,
-                    attr: bindings::kunit_attributes { speed: bindings::kunit_speed_KUNIT_SPEED_UNSET },
+                    attr: bindings::kunit_attributes {
+                        speed: bindings::kunit_speed_KUNIT_SPEED_UNSET,
+                    },
                     init: None,
                     exit: None,
                     status_comment: [0; 256usize],
-                    debugfs: core::ptr::null_mut(),
-                    log: core::ptr::null_mut(),
+                    debugfs: std::ptr::null_mut(),
+                    log: std::ptr::null_mut(),
                     suite_init_err: 0,
                 });
 

@@ -4,7 +4,7 @@
 //!
 //! This module allows Rust code to use the kernel's `spinlock_t`.
 
-use core::ops::DerefMut;
+use std::ops::DerefMut;
 
 use crate::bindings;
 use crate::CachePadded;
@@ -103,11 +103,11 @@ pub struct SpinLockBackend;
 // default implementation that always calls the same locking method.
 unsafe impl super::Backend for SpinLockBackend {
     type State = CachePadded<bindings::spinlock_t>;
-    type GuardState = Option<core::ffi::c_ulong>;
+    type GuardState = Option<std::ffi::c_ulong>;
 
     unsafe fn init(
         ptr: *mut Self::State,
-        name: *const core::ffi::c_char,
+        name: *const std::ffi::c_char,
         key: *mut bindings::lock_class_key,
     ) {
         // SAFETY: The safety requirements ensure that `ptr` is valid for writes, and `name` and

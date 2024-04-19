@@ -426,7 +426,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                 "
                     kernel::bindings::kernel_param__bindgen_ty_1 {{
                         arg: unsafe {{ &__{name}_{param_name}_value }}
-                            as *const _ as *mut core::ffi::c_void,
+                            as *const _ as *mut std::ffi::c_void,
                     }},
                 ",
                 name = info.name,
@@ -457,12 +457,12 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                 }}
 
                 #[cfg(not(MODULE))]
-                const __{name}_{param_name}_name: *const core::ffi::c_char =
-                    b\"{name}.{param_name}\\0\" as *const _ as *const core::ffi::c_char;
+                const __{name}_{param_name}_name: *const std::ffi::c_char =
+                    b\"{name}.{param_name}\\0\" as *const _ as *const std::ffi::c_char;
 
                 #[cfg(MODULE)]
-                const __{name}_{param_name}_name: *const core::ffi::c_char =
-                    b\"{param_name}\\0\" as *const _ as *const core::ffi::c_char;
+                const __{name}_{param_name}_name: *const std::ffi::c_char =
+                    b\"{param_name}\\0\" as *const _ as *const std::ffi::c_char;
 
                 #[link_section = \"__param\"]
                 #[used]
@@ -474,7 +474,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                         #[cfg(MODULE)]
                         mod_: unsafe {{ &kernel::bindings::__this_module as *const _ as *mut _ }},
                         #[cfg(not(MODULE))]
-                        mod_: core::ptr::null_mut(),
+                        mod_: std::ptr::null_mut(),
                         ops: unsafe {{ &{ops} }} as *const kernel::bindings::kernel_param_ops,
                         perm: {permissions},
                         level: -1,
@@ -540,14 +540,14 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
             }};
             #[cfg(not(MODULE))]
             static THIS_MODULE: kernel::ThisModule = unsafe {{
-                kernel::ThisModule::from_ptr(core::ptr::null_mut())
+                kernel::ThisModule::from_ptr(std::ptr::null_mut())
             }};
 
             // Loadable modules need to export the `{{init,cleanup}}_module` identifiers.
             #[cfg(MODULE)]
             #[doc(hidden)]
             #[no_mangle]
-            pub extern \"C\" fn init_module() -> core::ffi::c_int {{
+            pub extern \"C\" fn init_module() -> std::ffi::c_int {{
                 __init()
             }}
 
@@ -565,11 +565,11 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
             #[doc(hidden)]
             #[link_section = \"{initcall_section}\"]
             #[used]
-            pub static __{name}_initcall: extern \"C\" fn() -> core::ffi::c_int = __{name}_init;
+            pub static __{name}_initcall: extern \"C\" fn() -> std::ffi::c_int = __{name}_init;
 
             #[cfg(not(MODULE))]
             #[cfg(CONFIG_HAVE_ARCH_PREL32_RELOCATIONS)]
-            core::arch::global_asm!(
+            std::arch::global_asm!(
                 r#\".section \"{initcall_section}\", \"a\"
                 __{name}_initcall:
                     .long   __{name}_init - .
@@ -580,7 +580,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
             #[cfg(not(MODULE))]
             #[doc(hidden)]
             #[no_mangle]
-            pub extern \"C\" fn __{name}_init() -> core::ffi::c_int {{
+            pub extern \"C\" fn __{name}_init() -> std::ffi::c_int {{
                 __init()
             }}
 
@@ -591,7 +591,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                 __exit()
             }}
 
-            fn __init() -> core::ffi::c_int {{
+            fn __init() -> std::ffi::c_int {{
                 match <{type_} as kernel::Module>::init(&THIS_MODULE) {{
                     Ok(m) => {{
                         unsafe {{

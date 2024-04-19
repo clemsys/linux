@@ -6,11 +6,11 @@
 
 use crate::error::{code::*, Result};
 use crate::types::{ARef, AlwaysRefCounted, Opaque, ScopeGuard};
-use core::ffi::c_void;
-use core::marker::PhantomData;
-use core::ptr::NonNull;
-use core::slice;
-use core::{cmp::min, ptr};
+use std::ffi::c_void;
+use std::marker::PhantomData;
+use std::ptr::NonNull;
+use std::slice;
+use std::{cmp::min, ptr};
 
 /// Wraps the kernel's `struct folio`.
 ///
@@ -102,7 +102,7 @@ impl UniqueFolio {
 
     /// Copy `src.len()` bytes from `src` into `self` at offset 0
     pub fn copy_from_slice(&mut self, src: &[u8]) -> Result {
-        use core::ops::DerefMut;
+        use std::ops::DerefMut;
         let mut dst_map = self.map_page_mut(0)?;
         let dst: &mut [u8] = dst_map.deref_mut();
         dst.get_mut(..src.len())
@@ -123,12 +123,12 @@ pub struct MapGuard<'a> {
     _p: PhantomData<&'a ()>,
 }
 
-impl core::ops::Deref for MapGuard<'_> {
+impl std::ops::Deref for MapGuard<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: By type invariant, `ptr` is mapped and valid for read for `bindings::PAGE_SIZE` bytes
-        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr().cast::<u8>(), bindings::PAGE_SIZE) }
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr().cast::<u8>(), bindings::PAGE_SIZE) }
     }
 }
 
@@ -143,7 +143,7 @@ impl Drop for MapGuard<'_> {
 /// A mapped [`UniqueFolio`] that allows mutable access
 pub struct MutMapGuard<'a>(MapGuard<'a>);
 
-impl core::ops::Deref for MutMapGuard<'_> {
+impl std::ops::Deref for MutMapGuard<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -151,12 +151,12 @@ impl core::ops::Deref for MutMapGuard<'_> {
     }
 }
 
-impl core::ops::DerefMut for MutMapGuard<'_> {
+impl std::ops::DerefMut for MutMapGuard<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: By the type invariant of `MapGuard`, `self.0.ptr` is mapped
         // and valid for read and write for `bindings::PAGE_SIZE` bytes
         unsafe {
-            core::slice::from_raw_parts_mut(self.0.ptr.as_ptr().cast::<u8>(), bindings::PAGE_SIZE)
+            std::slice::from_raw_parts_mut(self.0.ptr.as_ptr().cast::<u8>(), bindings::PAGE_SIZE)
         }
     }
 }
@@ -219,7 +219,7 @@ impl LockedFolio<'_> {
 
             // SAFETY: `kmap_local_folio` maps whole page so we know it's mapped for at least
             // `usable` bytes.
-            let s = unsafe { core::slice::from_raw_parts_mut(ptr.cast::<u8>(), usable) };
+            let s = unsafe { std::slice::from_raw_parts_mut(ptr.cast::<u8>(), usable) };
             cb(s)?;
 
             next_offset += usable;
@@ -249,7 +249,7 @@ impl LockedFolio<'_> {
     }
 }
 
-impl core::ops::Deref for LockedFolio<'_> {
+impl std::ops::Deref for LockedFolio<'_> {
     type Target = Folio;
     fn deref(&self) -> &Self::Target {
         self.0

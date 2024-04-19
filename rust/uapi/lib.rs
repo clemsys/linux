@@ -7,7 +7,6 @@
 //! This crate may be used directly by drivers that need to interact with
 //! userspace APIs.
 
-#![no_std]
 // See <https://github.com/rust-lang/rust-bindgen/issues/1651>.
 #![cfg_attr(test, allow(deref_nullptr))]
 #![cfg_attr(test, allow(unaligned_references))]

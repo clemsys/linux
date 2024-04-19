@@ -10,7 +10,7 @@ use crate::{
     bindings, error::from_err_ptr, error::Result, sync::Arc, types::ForeignOwnable,
     types::ScopeGuard,
 };
-use core::fmt::{self, Write};
+use std::fmt::{self, Write};
 
 /// A generic block device
 ///
@@ -57,8 +57,8 @@ impl<T: Operations> GenDisk<T> {
             devnode: None,
             alternative_gpt_sector: None,
             get_unique_id: None,
-            owner: core::ptr::null_mut(), // TODO: Set to THIS_MODULE
-            pr_ops: core::ptr::null_mut(),
+            owner: std::ptr::null_mut(), // TODO: Set to THIS_MODULE
+            pr_ops: std::ptr::null_mut(),
             free_disk: None,
             poll_bio: None,
         };
@@ -86,7 +86,7 @@ impl<T: Operations> GenDisk<T> {
     /// during registration to discover partition infomation.
     pub fn add(&self) -> Result {
         crate::error::to_result(unsafe {
-            bindings::device_add_disk(core::ptr::null_mut(), self.gendisk, core::ptr::null_mut())
+            bindings::device_add_disk(std::ptr::null_mut(), self.gendisk, std::ptr::null_mut())
         })
     }
 

@@ -214,8 +214,8 @@ use crate::{
     sync::UniqueArc,
     types::{Opaque, ScopeGuard},
 };
-use alloc::boxed::Box;
-use core::{
+use std::boxed::Box;
+use std::{
     alloc::AllocError,
     cell::UnsafeCell,
     convert::Infallible,
@@ -272,11 +272,11 @@ pub mod macros;
 macro_rules! stack_pin_init {
     (let $var:ident $(: $t:ty)? = $val:expr) => {
         let val = $val;
-        let mut $var = ::core::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
+        let mut $var = ::std::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
         let mut $var = match $crate::init::__internal::StackInit::init($var, val) {
             Ok(res) => res,
             Err(x) => {
-                let x: ::core::convert::Infallible = x;
+                let x: ::std::convert::Infallible = x;
                 match x {}
             }
         };
@@ -348,12 +348,12 @@ macro_rules! stack_pin_init {
 macro_rules! stack_try_pin_init {
     (let $var:ident $(: $t:ty)? = $val:expr) => {
         let val = $val;
-        let mut $var = ::core::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
+        let mut $var = ::std::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
         let mut $var = $crate::init::__internal::StackInit::init($var, val);
     };
     (let $var:ident $(: $t:ty)? =? $val:expr) => {
         let val = $val;
-        let mut $var = ::core::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
+        let mut $var = ::std::pin::pin!($crate::init::__internal::StackInit$(::<$t>)?::uninit());
         let mut $var = $crate::init::__internal::StackInit::init($var, val)?;
     };
 }
@@ -561,7 +561,7 @@ macro_rules! pin_init {
             @this($($this)?),
             @typ($t $(::<$($generics),*>)?),
             @fields($($fields)*),
-            @error(::core::convert::Infallible),
+            @error(::std::convert::Infallible),
             @data(PinData, use_data),
             @has_data(HasPinData, __pin_data),
             @construct_closure(pin_init_from_closure),
@@ -667,7 +667,7 @@ macro_rules! init {
             @this($($this)?),
             @typ($t $(::<$($generics),*>)?),
             @fields($($fields)*),
-            @error(::core::convert::Infallible),
+            @error(::std::convert::Infallible),
             @data(InitData, /*no use_data*/),
             @has_data(HasInitData, __init_data),
             @construct_closure(init_from_closure),
@@ -844,7 +844,7 @@ where
         let val = unsafe { Pin::new_unchecked(val) };
         (self.1)(val).map_err(|e| {
             // SAFETY: `slot` was initialized above.
-            unsafe { core::ptr::drop_in_place(slot) };
+            unsafe { std::ptr::drop_in_place(slot) };
             e
         })
     }
@@ -942,7 +942,7 @@ where
         // SAFETY: The above call initialized `slot` and we still have unique access.
         (self.1)(unsafe { &mut *slot }).map_err(|e| {
             // SAFETY: `slot` was initialized above.
-            unsafe { core::ptr::drop_in_place(slot) };
+            unsafe { std::ptr::drop_in_place(slot) };
             e
         })
     }
@@ -1293,7 +1293,7 @@ impl_zeroable! {
     f32, f64,
 
     // SAFETY: These are ZSTs, there is nothing to zero.
-    {<T: ?Sized>} PhantomData<T>, core::marker::PhantomPinned, Infallible, (),
+    {<T: ?Sized>} PhantomData<T>, std::marker::PhantomPinned, Infallible, (),
 
     // SAFETY: Type is allowed to take any value, including all zeros.
     {<T>} MaybeUninit<T>,

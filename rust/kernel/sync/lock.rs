@@ -9,8 +9,8 @@ use super::LockClassKey;
 use crate::{
     bindings, init::PinInit, pin_init, str::CStr, types::Opaque, types::ScopeGuard, CachePadded,
 };
-use core::{cell::UnsafeCell, marker::PhantomData, marker::PhantomPinned};
 use macros::pin_data;
+use std::{cell::UnsafeCell, marker::PhantomData, marker::PhantomPinned};
 
 pub mod mutex;
 pub mod spinlock;
@@ -41,7 +41,7 @@ pub unsafe trait Backend {
     /// remain valid for read indefinitely.
     unsafe fn init(
         ptr: *mut Self::State,
-        name: *const core::ffi::c_char,
+        name: *const std::ffi::c_char,
         key: *mut bindings::lock_class_key,
     );
 
@@ -193,7 +193,7 @@ impl<T: ?Sized, B: Backend> Guard<'_, T, B> {
     }
 }
 
-impl<T: ?Sized, B: Backend> core::ops::Deref for Guard<'_, T, B> {
+impl<T: ?Sized, B: Backend> std::ops::Deref for Guard<'_, T, B> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -202,7 +202,7 @@ impl<T: ?Sized, B: Backend> core::ops::Deref for Guard<'_, T, B> {
     }
 }
 
-impl<T: ?Sized, B: Backend> core::ops::DerefMut for Guard<'_, T, B> {
+impl<T: ?Sized, B: Backend> std::ops::DerefMut for Guard<'_, T, B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: The caller owns the lock, so it is safe to deref the protected data.
         unsafe { &mut *self.lock.data.get() }

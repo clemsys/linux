@@ -5,7 +5,7 @@
 //! C header: [`include/linux/sched.h`](../../../../include/linux/sched.h).
 
 use crate::{bindings, types::Opaque};
-use core::{marker::PhantomData, ops::Deref, ptr};
+use std::{marker::PhantomData, ops::Deref, ptr};
 
 /// Returns the currently running task.
 #[macro_export]

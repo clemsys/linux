@@ -16,7 +16,7 @@ impl<T> CachePadded<T> {
     }
 }
 
-impl<T: ?Sized> core::ops::Deref for CachePadded<T> {
+impl<T: ?Sized> std::ops::Deref for CachePadded<T> {
     type Target = T;
 
     #[inline(always)]
@@ -25,7 +25,7 @@ impl<T: ?Sized> core::ops::Deref for CachePadded<T> {
     }
 }
 
-impl<T: ?Sized> core::ops::DerefMut for CachePadded<T> {
+impl<T: ?Sized> std::ops::DerefMut for CachePadded<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
         &mut self.value

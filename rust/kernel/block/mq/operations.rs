@@ -11,7 +11,7 @@ use crate::{
     init::PinInit,
     types::ForeignOwnable,
 };
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 /// Implement this trait to interface blk-mq as block devices
 #[macros::vtable]
@@ -152,16 +152,16 @@ impl<T: Operations> OperationsVtable<T> {
     unsafe extern "C" fn poll_callback(
         hctx: *mut bindings::blk_mq_hw_ctx,
         _iob: *mut bindings::io_comp_batch,
-    ) -> core::ffi::c_int {
+    ) -> std::ffi::c_int {
         let hw_data = unsafe { T::HwData::borrow((*hctx).driver_data) };
         T::poll(hw_data)
     }
 
     unsafe extern "C" fn init_hctx_callback(
         hctx: *mut bindings::blk_mq_hw_ctx,
-        tagset_data: *mut core::ffi::c_void,
-        hctx_idx: core::ffi::c_uint,
-    ) -> core::ffi::c_int {
+        tagset_data: *mut std::ffi::c_void,
+        hctx_idx: std::ffi::c_uint,
+    ) -> std::ffi::c_int {
         from_result(|| {
             let tagset_data = unsafe { T::TagSetData::borrow(tagset_data) };
             let data = T::init_hctx(tagset_data, hctx_idx)?;
@@ -172,7 +172,7 @@ impl<T: Operations> OperationsVtable<T> {
 
     unsafe extern "C" fn exit_hctx_callback(
         hctx: *mut bindings::blk_mq_hw_ctx,
-        _hctx_idx: core::ffi::c_uint,
+        _hctx_idx: std::ffi::c_uint,
     ) {
         let ptr = unsafe { (*hctx).driver_data };
         unsafe { T::HwData::from_foreign(ptr) };
@@ -181,9 +181,9 @@ impl<T: Operations> OperationsVtable<T> {
     unsafe extern "C" fn init_request_callback(
         set: *mut bindings::blk_mq_tag_set,
         rq: *mut bindings::request,
-        _hctx_idx: core::ffi::c_uint,
-        _numa_node: core::ffi::c_uint,
-    ) -> core::ffi::c_int {
+        _hctx_idx: std::ffi::c_uint,
+        _numa_node: std::ffi::c_uint,
+    ) -> std::ffi::c_int {
         from_result(|| {
             // SAFETY: The tagset invariants guarantee that all requests are allocated with extra memory
             // for the request data.
@@ -200,14 +200,14 @@ impl<T: Operations> OperationsVtable<T> {
     unsafe extern "C" fn exit_request_callback(
         _set: *mut bindings::blk_mq_tag_set,
         rq: *mut bindings::request,
-        _hctx_idx: core::ffi::c_uint,
+        _hctx_idx: std::ffi::c_uint,
     ) {
         // SAFETY: The tagset invariants guarantee that all requests are allocated with extra memory
         // for the request data.
         let pdu = unsafe { bindings::blk_mq_rq_to_pdu(rq) } as *mut T::RequestData;
 
         // SAFETY: `pdu` is valid for read and write and is properly initialised.
-        unsafe { core::ptr::drop_in_place(pdu) };
+        unsafe { std::ptr::drop_in_place(pdu) };
     }
 
     unsafe extern "C" fn map_queues_callback(tag_set_ptr: *mut bindings::blk_mq_tag_set) {

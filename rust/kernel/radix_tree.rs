@@ -8,9 +8,9 @@ use crate::error::to_result;
 use crate::error::Result;
 use crate::types::ForeignOwnable;
 use crate::types::Opaque;
-use alloc::boxed::Box;
-use core::marker::PhantomData;
-use core::pin::Pin;
+use std::boxed::Box;
+use std::marker::PhantomData;
+use std::pin::Pin;
 
 type Key = u64;
 
@@ -55,7 +55,7 @@ impl<V: ForeignOwnable> RadixTree<V> {
     pub fn get(&self, key: Key) -> Option<V::Borrowed<'_>> {
         // SAFETY: `self.tree` points to a valid and initialized `struct radix_tree`
         let item =
-            core::ptr::NonNull::new(unsafe { bindings::radix_tree_lookup(self.tree.get(), key) })?;
+            std::ptr::NonNull::new(unsafe { bindings::radix_tree_lookup(self.tree.get(), key) })?;
 
         // SAFETY: `item` was created by a call to
         // `ForeignOwnable::into_foreign()`. As `get_mut()` and `remove()` takes
@@ -69,7 +69,7 @@ impl<V: ForeignOwnable> RadixTree<V> {
     /// associated value if found.
     pub fn get_mut(&mut self, key: Key) -> Option<V::BorrowedMut<'_>> {
         let item =
-            core::ptr::NonNull::new(unsafe { bindings::radix_tree_lookup(self.tree.get(), key) })?;
+            std::ptr::NonNull::new(unsafe { bindings::radix_tree_lookup(self.tree.get(), key) })?;
 
         // SAFETY: `item` was created by a call to
         // `ForeignOwnable::into_foreign()`. As `get()` takes a `&self` and
@@ -84,7 +84,7 @@ impl<V: ForeignOwnable> RadixTree<V> {
     pub fn remove(&mut self, key: Key) -> Option<V> {
         // SAFETY: `self.tree` points to a valid and initialized `struct radix_tree`
         let item =
-            core::ptr::NonNull::new(unsafe { bindings::radix_tree_delete(self.tree.get(), key) })?;
+            std::ptr::NonNull::new(unsafe { bindings::radix_tree_delete(self.tree.get(), key) })?;
 
         // SAFETY: `item` was created by a call to
         // `ForeignOwnable::into_foreign()` and no borrows to `item` can exist
@@ -99,7 +99,7 @@ impl<V: ForeignOwnable> Drop for RadixTree<V> {
             index: 0,
             next_index: 0,
             tags: 0,
-            node: core::ptr::null_mut(),
+            node: std::ptr::null_mut(),
         };
 
         // SAFETY: Iter is valid as we allocated it on the stack above

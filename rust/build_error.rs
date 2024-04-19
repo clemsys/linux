@@ -17,8 +17,6 @@
 //! [const-functions]: https://doc.rust-lang.org/reference/const_eval.html#const-functions
 //! [const-context]: https://doc.rust-lang.org/reference/const_eval.html#const-context
 
-#![no_std]
-
 /// Panics if executed in [const context][const-context], or triggers a build error if not.
 ///
 /// [const-context]: https://doc.rust-lang.org/reference/const_eval.html#const-context

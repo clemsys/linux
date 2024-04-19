@@ -1,4 +1,4 @@
-use core::fmt::{self, Write};
+use std::fmt::{self, Write};
 
 pub(crate) struct RawWriter {
     ptr: *mut u8,
@@ -10,7 +10,7 @@ impl RawWriter {
         Self { ptr, len }
     }
 
-    pub(crate) fn from_array<const N: usize>(a: &mut [core::ffi::c_char; N]) -> Self {
+    pub(crate) fn from_array<const N: usize>(a: &mut [std::ffi::c_char; N]) -> Self {
         unsafe { Self::new(&mut a[0] as *mut _ as _, N) }
     }
 }
@@ -22,7 +22,7 @@ impl Write for RawWriter {
         if len > self.len {
             return Err(fmt::Error);
         }
-        unsafe { core::ptr::copy_nonoverlapping(&bytes[0], self.ptr, len) };
+        unsafe { std::ptr::copy_nonoverlapping(&bytes[0], self.ptr, len) };
         self.ptr = unsafe { self.ptr.add(len) };
         self.len -= len;
         Ok(())

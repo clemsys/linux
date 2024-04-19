@@ -5,7 +5,7 @@
 //! load time by parameters `param_memory_backed`, `param_capacity_mib`,
 //! `param_irq_mode` and `param_completion_time_nsec!.
 
-use core::ops::Deref;
+use std::ops::Deref;
 
 use kernel::{
     bindings,

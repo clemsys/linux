@@ -6,7 +6,7 @@
 //! for most operations. Page allocation flags are fixed.
 
 use crate::{bindings, error::code::*, error::Result, PAGE_SIZE};
-use core::{marker::PhantomData, ptr};
+use std::{marker::PhantomData, ptr};
 
 /// A set of physical pages.
 ///
@@ -176,7 +176,6 @@ impl Pages<0> {
 
     /// Copy src into `self`.
     pub fn copy_from_slice(&mut self, src: &[u8]) -> Result {
-
         if src.len() as u32 > PAGE_SIZE {
             return Err(EINVAL);
         }
@@ -328,7 +327,7 @@ where
     Pages<0>: MappingActions<I>,
 {
     page: *mut bindings::page,
-    ptr: *mut core::ffi::c_void,
+    ptr: *mut std::ffi::c_void,
     _phantom: PhantomData<&'a i32>,
     _phantom2: PhantomData<I>,
 }
@@ -339,19 +338,19 @@ where
 {
     /// Return a pointer to the wrapped `struct page`
     #[inline(always)]
-    pub fn get_ptr(&self) -> *mut core::ffi::c_void {
+    pub fn get_ptr(&self) -> *mut std::ffi::c_void {
         self.ptr
     }
 }
 
-impl<'a, I: MappingInfo> core::ops::Deref for PageMapping<'a, I>
+impl<'a, I: MappingInfo> std::ops::Deref for PageMapping<'a, I>
 where
     Pages<0>: MappingActions<I>,
 {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { core::slice::from_raw_parts(self.ptr.cast::<u8>(), bindings::PAGE_SIZE) }
+        unsafe { std::slice::from_raw_parts(self.ptr.cast::<u8>(), bindings::PAGE_SIZE) }
     }
 }
 

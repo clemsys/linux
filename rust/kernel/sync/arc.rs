@@ -22,8 +22,9 @@ use crate::{
     try_init,
     types::{ForeignOwnable, Opaque},
 };
-use alloc::boxed::Box;
-use core::{
+use macros::pin_data;
+use std::boxed::Box;
+use std::{
     alloc::{AllocError, Layout},
     fmt,
     marker::{PhantomData, Unsize},
@@ -32,7 +33,6 @@ use core::{
     pin::Pin,
     ptr::{NonNull, Pointee},
 };
-use macros::pin_data;
 
 mod std_vendor;
 
@@ -138,14 +138,14 @@ struct ArcInner<T: ?Sized> {
 }
 
 // This is to allow [`Arc`] (and variants) to be used as the type of `self`.
-impl<T: ?Sized> core::ops::Receiver for Arc<T> {}
+impl<T: ?Sized> std::ops::Receiver for Arc<T> {}
 
 // This is to allow coercion from `Arc<T>` to `Arc<U>` if `T` can be converted to the
 // dynamically-sized type (DST) `U`.
-impl<T: ?Sized + Unsize<U>, U: ?Sized> core::ops::CoerceUnsized<Arc<U>> for Arc<T> {}
+impl<T: ?Sized + Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Arc<U>> for Arc<T> {}
 
 // This is to allow `Arc<U>` to be dispatched on when `Arc<T>` can be coerced into `Arc<U>`.
-impl<T: ?Sized + Unsize<U>, U: ?Sized> core::ops::DispatchFromDyn<Arc<U>> for Arc<T> {}
+impl<T: ?Sized + Unsize<U>, U: ?Sized> std::ops::DispatchFromDyn<Arc<U>> for Arc<T> {}
 
 // SAFETY: It is safe to send `Arc<T>` to another thread when the underlying `T` is `Sync` because
 // it effectively means sharing `&T` (which is safe because `T` is `Sync`); additionally, it needs
@@ -220,9 +220,9 @@ impl<T: ?Sized> Arc<T> {
     /// The raw pointer has ownership of the refcount that this Arc object owned.
     pub fn into_raw(self) -> *const T {
         let ptr = self.ptr.as_ptr();
-        core::mem::forget(self);
+        std::mem::forget(self);
         // SAFETY: The pointer is valid.
-        unsafe { core::ptr::addr_of!((*ptr).data) }
+        unsafe { std::ptr::addr_of!((*ptr).data) }
     }
 
     /// Recreates an [`Arc`] instance previously deconstructed via [`Arc::into_raw`].
@@ -239,18 +239,18 @@ impl<T: ?Sized> Arc<T> {
         // binary, so its layout is not so large that it can trigger arithmetic overflow.
         let val_offset = unsafe { refcount_layout.extend(val_layout).unwrap_unchecked().1 };
 
-        let metadata: <T as Pointee>::Metadata = core::ptr::metadata(ptr);
+        let metadata: <T as Pointee>::Metadata = std::ptr::metadata(ptr);
         // SAFETY: The metadata of `T` and `ArcInner<T>` is the same because `ArcInner` is a struct
         // with `T` as its last field.
         //
         // This is documented at:
         // <https://doc.rust-lang.org/std/ptr/trait.Pointee.html>.
         let metadata: <ArcInner<T> as Pointee>::Metadata =
-            unsafe { core::mem::transmute_copy(&metadata) };
+            unsafe { std::mem::transmute_copy(&metadata) };
         // SAFETY: The pointer is in-bounds of an allocation both before and after offsetting the
         // pointer, since it originates from a previous call to `Arc::into_raw` and is still valid.
         let ptr = unsafe { (ptr as *mut u8).sub(val_offset) as *mut () };
-        let ptr = core::ptr::from_raw_parts_mut(ptr, metadata);
+        let ptr = std::ptr::from_raw_parts_mut(ptr, metadata);
 
         // SAFETY: By the safety requirements we know that `ptr` came from `Arc::into_raw`, so the
         // reference count held then will be owned by the new `Arc` object.
@@ -271,7 +271,7 @@ impl<T: ?Sized> Arc<T> {
 
     /// Compare whether two [`Arc`] pointers reference the same underlying object.
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        core::ptr::eq(this.ptr.as_ptr(), other.ptr.as_ptr())
+        std::ptr::eq(this.ptr.as_ptr(), other.ptr.as_ptr())
     }
 }
 
@@ -281,18 +281,18 @@ impl<T: 'static> ForeignOwnable for Arc<T> {
     // immutable access.
     type BorrowedMut<'a> = ArcBorrow<'a, T>;
 
-    fn into_foreign(self) -> *const core::ffi::c_void {
+    fn into_foreign(self) -> *const std::ffi::c_void {
         ManuallyDrop::new(self).ptr.as_ptr() as _
     }
 
-    unsafe fn from_foreign(ptr: *const core::ffi::c_void) -> Self {
+    unsafe fn from_foreign(ptr: *const std::ffi::c_void) -> Self {
         // SAFETY: By the safety requirement of this function, we know that `ptr` came from
         // a previous call to `Arc::into_foreign`, which guarantees that `ptr` is valid and
         // holds a reference count increment that is transferrable to us.
         unsafe { Self::from_inner(NonNull::new_unchecked(ptr as _)) }
     }
 
-    unsafe fn borrow<'a>(ptr: *const core::ffi::c_void) -> ArcBorrow<'a, T> {
+    unsafe fn borrow<'a>(ptr: *const std::ffi::c_void) -> ArcBorrow<'a, T> {
         // SAFETY: By the safety requirement of this function, we know that `ptr` came from
         // a previous call to `Arc::into_foreign`.
         let inner = unsafe { NonNull::new_unchecked(ptr as *mut ArcInner<T>) };
@@ -302,7 +302,7 @@ impl<T: 'static> ForeignOwnable for Arc<T> {
         unsafe { ArcBorrow::new(inner) }
     }
 
-    unsafe fn borrow_mut<'a>(ptr: *const core::ffi::c_void) -> ArcBorrow<'a, T> {
+    unsafe fn borrow_mut<'a>(ptr: *const std::ffi::c_void) -> ArcBorrow<'a, T> {
         // SAFETY: The safety requirements for `borrow_mut` are a superset of the safety
         // requirements for `borrow`.
         unsafe { Self::borrow(ptr) }
@@ -432,11 +432,11 @@ pub struct ArcBorrow<'a, T: ?Sized + 'a> {
 }
 
 // This is to allow [`ArcBorrow`] (and variants) to be used as the type of `self`.
-impl<T: ?Sized> core::ops::Receiver for ArcBorrow<'_, T> {}
+impl<T: ?Sized> std::ops::Receiver for ArcBorrow<'_, T> {}
 
 // This is to allow `ArcBorrow<U>` to be dispatched on when `ArcBorrow<T>` can be coerced into
 // `ArcBorrow<U>`.
-impl<T: ?Sized + Unsize<U>, U: ?Sized> core::ops::DispatchFromDyn<ArcBorrow<'_, U>>
+impl<T: ?Sized + Unsize<U>, U: ?Sized> std::ops::DispatchFromDyn<ArcBorrow<'_, U>>
     for ArcBorrow<'_, T>
 {
 }
@@ -614,7 +614,7 @@ impl<T> UniqueArc<MaybeUninit<T>> {
     }
 
     /// Initialize `self` using the given initializer.
-    pub fn init_with<E>(mut self, init: impl Init<T, E>) -> core::result::Result<UniqueArc<T>, E> {
+    pub fn init_with<E>(mut self, init: impl Init<T, E>) -> std::result::Result<UniqueArc<T>, E> {
         // SAFETY: The supplied pointer is valid for initialization.
         match unsafe { init.__init(self.as_mut_ptr()) } {
             // SAFETY: Initialization completed successfully.
@@ -627,7 +627,7 @@ impl<T> UniqueArc<MaybeUninit<T>> {
     pub fn pin_init_with<E>(
         mut self,
         init: impl PinInit<T, E>,
-    ) -> core::result::Result<Pin<UniqueArc<T>>, E> {
+    ) -> std::result::Result<Pin<UniqueArc<T>>, E> {
         // SAFETY: The supplied pointer is valid for initialization and we will later pin the value
         // to ensure it does not move.
         match unsafe { init.__pinned_init(self.as_mut_ptr()) } {

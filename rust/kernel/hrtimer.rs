@@ -6,7 +6,7 @@
 //!
 //! TODO
 
-use core::{
+use std::{
     marker::{PhantomData, PhantomPinned},
     pin::Pin,
 };
@@ -41,10 +41,10 @@ impl<T: TimerCallback> Timer<T> {
                 // SAFETY: `slot` is pointing to a live allocation, so the deref
                 // is safe. The `function` field might not be initialized, but
                 // `addr_of_mut` does not create a reference to the field.
-                let function: *mut Option<_> = unsafe { core::ptr::addr_of_mut!((*slot).function) };
+                let function: *mut Option<_> = unsafe { std::ptr::addr_of_mut!((*slot).function) };
 
                 // SAFETY: `function` points to a valid allocation.
-                unsafe { core::ptr::write(function, Some(T::Receiver::run)) };
+                unsafe { std::ptr::write(function, Some(T::Receiver::run)) };
             }),
             _t: PhantomData,
         })
@@ -166,13 +166,13 @@ macro_rules! impl_has_timer {
         // SAFETY: This implementation of `raw_get_timer` only compiles if the
         // field has the right type.
         unsafe impl$(<$($implarg),*>)? $crate::hrtimer::HasTimer<$timer_type> for $self $(<$($selfarg),*>)? {
-            const OFFSET: usize = ::core::mem::offset_of!(Self, $field) as usize;
+            const OFFSET: usize = ::std::mem::offset_of!(Self, $field) as usize;
 
             #[inline]
             unsafe fn raw_get_timer(ptr: *mut Self) -> *mut $crate::hrtimer::Timer<$timer_type $(, $id)?> {
                 // SAFETY: The caller promises that the pointer is not dangling.
                 unsafe {
-                    ::core::ptr::addr_of_mut!((*ptr).$field)
+                    ::std::ptr::addr_of_mut!((*ptr).$field)
                 }
             }
         }
@@ -181,11 +181,11 @@ macro_rules! impl_has_timer {
 
 #[kunit_tests(rust_htimer)]
 mod tests {
-    use crate::{stack_pin_init, hrtimer::TimerCallback, pr_info, prelude::*};
     use super::*;
-    use core::sync::atomic::AtomicBool;
-    use core::sync::atomic::Ordering;
     use crate::sync::Arc;
+    use crate::{hrtimer::TimerCallback, pr_info, prelude::*, stack_pin_init};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn test_timer() {
