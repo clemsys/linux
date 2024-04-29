@@ -18,14 +18,16 @@ use kernel::{
         mq::{self, GenDisk, Operations, TagSet},
     },
     error::Result,
-    hrtimer::{RawTimer, TimerCallback},
-    new_mutex, new_spinlock,
     folio::*,
-    pr_info,
+    hrtimer::{RawTimer, TimerCallback},
+    new_mutex, new_spinlock, pr_info,
     prelude::*,
     sync::{Arc, Mutex, SpinLock},
     types::ForeignOwnable,
+    xarray::UniqueFolioXArray,
 };
+
+use vstd::prelude::*;
 
 module! {
     type: NullBlkModule,
@@ -60,6 +62,117 @@ module! {
             description: "Block size in bytes",
         },
     },
+}
+
+// verus! { //VERUSBLOCK
+type Tree = kernel::xarray::UniqueFolioXArray;
+type TreeRef<'a> = Pin<&'a Tree>;
+
+#[verifier(external_body)]
+#[verifier(external_type_specification)]
+#[verifier::reject_recursive_types(T)]
+pub struct ExPin<T> {
+    tree: Pin<T>,
+}
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExUniqueFolioGuard<'a>(kernel::xarray::UniqueFolioGuard<'a>);
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExUniqueFolioXArray(UniqueFolioXArray);
+
+#[verifier(external_fn_specification)]
+pub fn ex_uniquefolio_xarray_get(
+    xarray: TreeRef<'_>,
+    index: usize,
+) -> Option<kernel::xarray::UniqueFolioGuard<'_>> {
+    xarray.get(index)
+}
+
+#[verifier(external_fn_specification)]
+pub fn ex_uniquefolio_xarray_set(
+    xarray: TreeRef<'_>,
+    index: usize,
+    value: Box<UniqueFolio>,
+) -> Result {
+    xarray.set(index, value)
+}
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExUniqueFolio(UniqueFolio);
+
+#[verifier(external_fn_specification)]
+pub fn ex_verus_helper_guard_deref<'a>(
+    guard: &'a kernel::xarray::UniqueFolioGuard<'a>,
+) -> &'a UniqueFolio {
+    verus_helper_guard_deref(guard)
+}
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExSegment<'a>(Segment<'a>);
+
+#[verifier(external_fn_specification)]
+pub fn ex_segment_copy_from_folio<'a>(segment: &mut Segment<'a>, src: &UniqueFolio) -> Result {
+    segment.copy_from_folio(src)
+}
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExError(kernel::error::Error);
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExAllocError(std::alloc::AllocError);
+
+#[verifier(external_fn_specification)]
+pub fn ex_box_try_new<T>(value: T) -> Result<Box<T>, std::alloc::AllocError> {
+    Box::try_new(value)
+}
+
+#[verifier(external_fn_specification)]
+pub fn folio_try_new(value: u32) -> Result<UniqueFolio> {
+    Folio::try_new(value)
+}
+
+impl NullBlkDevice {
+    #[inline(always)]
+    fn write(tree: TreeRef<'_>, sector: usize, segment: &Segment<'_>) -> Result {
+        let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
+
+        let mut folio = if let Some(page) = tree.get(idx) {
+            page
+        } else {
+            tree.set(idx, Box::try_new(Folio::try_new(0)?)?)?;
+            tree.get(idx).unwrap()
+        };
+
+        //segment.copy_to_folio(&mut folio)?;
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn read(tree: TreeRef<'_>, sector: usize, segment: &mut Segment<'_>) -> Result {
+        let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
+
+        if let Some(folio) = tree.get(idx) {
+            segment.copy_from_folio(verus_helper_guard_deref(&folio))?;
+        }
+
+        Ok(())
+    }
+}
+
+// } //VERUSBLOCK
+
+fn verus_helper_guard_deref<'a>(
+    guard: &'a kernel::xarray::UniqueFolioGuard<'a>,
+) -> &'a UniqueFolio {
+    guard.deref()
 }
 
 #[derive(Debug)]
@@ -136,13 +249,10 @@ impl Drop for NullBlkModule {
 
 struct NullBlkDevice;
 
-type Tree = kernel::xarray::XArray<Box<UniqueFolio>>;
-type TreeRef<'a> = Pin<&'a Tree>;
-
 #[pin_data]
 struct QueueData {
     #[pin]
-    tree: SpinLock<Tree>,
+    tree: SpinLock<kernel::xarray::XArray<Box<UniqueFolio>>>,
     completion_time_nsec: u64,
     irq_mode: IRQMode,
     memory_backed: bool,
@@ -150,33 +260,6 @@ struct QueueData {
 }
 
 impl NullBlkDevice {
-    #[inline(always)]
-    fn write(tree: TreeRef<'_>, sector: usize, segment: &Segment<'_>) -> Result {
-        let idx = sector >> 3; // TODO: PAGE_SECTOR_SHIFT
-
-        let mut folio = if let Some(page) = tree.as_ref().get(idx) {
-            page
-        } else {
-            tree.set(idx, Box::try_new(Folio::try_new(0)?)?)?;
-            tree.get(idx).unwrap()
-        };
-
-        segment.copy_to_folio(&mut folio)?;
-
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn read(tree: TreeRef<'_>, sector: usize, segment: &mut Segment<'_>) -> Result {
-        let idx = sector >> 3; // TODO: PAGE_SECTOR_SHIFT
-
-        if let Some(folio) = tree.get(idx) {
-            segment.copy_from_folio(folio.deref())?;
-        }
-
-        Ok(())
-    }
-
     #[inline(never)]
     fn transfer(
         command: bindings::req_op,
@@ -244,7 +327,12 @@ impl Operations for NullBlkDevice {
             let mut sector = rq.sector();
             for bio in rq.bio_iter() {
                 for mut segment in bio.segment_iter() {
-                    Self::transfer(rq.command(), tree, sector, &mut segment)?;
+                    Self::transfer(
+                        rq.command(),
+                        UniqueFolioXArray::from_xarray_ref(tree),
+                        sector,
+                        &mut segment,
+                    )?;
                     sector += segment.len() >> 9; // TODO: SECTOR_SHIFT
                 }
             }

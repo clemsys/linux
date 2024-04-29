@@ -7,7 +7,8 @@
 use crate::{
     bindings,
     error::{to_result, Error, Result},
-    types::{ForeignOwnable, Opaque, ScopeGuard}, init::PinInit,
+    init::PinInit,
+    types::{ForeignOwnable, Opaque, ScopeGuard},
 };
 use std::{
     marker::{PhantomData, PhantomPinned},
@@ -354,3 +355,332 @@ impl<T: ForeignOwnable> Drop for XArray<T> {
 // SAFETY: XArray is thread-safe and all mutation operations are internally locked.
 unsafe impl<T: Send + ForeignOwnable> Send for XArray<T> {}
 unsafe impl<T: Sync + ForeignOwnable> Sync for XArray<T> {}
+
+// Reimplementations for UniqueFolio
+use crate::folio::UniqueFolio;
+
+pub struct UniqueFolioGuard<'a>(NonNull<Box<UniqueFolio>>, Pin<&'a UniqueFolioXArray>);
+
+// INVARIANTS: The lock held by the Guard prevents concurrent access to the XArray.
+// The Guard's Drop implementation releases the lock only when the Guard is
+// dropped, ensuring exclusive access during its existence. Therefore, within
+// the Guard's lifetime, no other operation (including the XArray
+// calling `T::from_foreign`) can access or modify the underlying value.
+//
+// The Guard holds a reference (`self.0`) to the underlying value owned by
+// XArray. You can use the `into_foreign` method to obtain a pointer to the
+// foreign representation of the owned value, which is valid for the lifetime
+// of the Guard.
+impl<'a> UniqueFolioGuard<'a> {
+    /// Borrow the underlying value wrapped by the `Guard`.
+    ///
+    /// Returns a `T::Borrowed` type for the owned `ForeignOwnable` type.
+    pub fn borrow(&self) -> <Box<UniqueFolio> as ForeignOwnable>::Borrowed<'_> {
+        // SAFETY: The value is owned by the `XArray`, the lifetime it is borrowed for must not
+        // outlive the `XArray` itself, nor the Guard that holds the lock ensuring the value
+        // remains in the `XArray`.
+        unsafe { Box::<UniqueFolio>::borrow(self.0.as_ptr() as _) }
+    }
+
+    pub fn borrow_mut(&mut self) -> <Box<UniqueFolio> as ForeignOwnable>::BorrowedMut<'_> {
+        unsafe { Box::<UniqueFolio>::borrow_mut(self.0.as_ptr() as _) }
+    }
+}
+
+// Convenience impl for `ForeignOwnable` types whose `Borrowed`
+// form implements Deref.
+impl<'a> Deref for UniqueFolioGuard<'a> {
+    type Target = <<Box<UniqueFolio> as ForeignOwnable>::Borrowed<'a> as Deref>::Target;
+
+    fn deref(&self) -> &Self::Target {
+        self.borrow().into()
+    }
+}
+
+impl<'a> DerefMut for UniqueFolioGuard<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut().into()
+    }
+}
+
+impl<'a> Drop for UniqueFolioGuard<'a> {
+    fn drop(&mut self) {
+        // SAFETY: The XArray we have a reference to owns the C xarray object.
+        unsafe { bindings::xa_unlock(self.1.xa.get()) };
+    }
+}
+
+pub struct UniqueFolioReservation<'a>(
+    Pin<&'a UniqueFolioXArray>,
+    usize,
+    PhantomData<Box<UniqueFolio>>,
+);
+
+impl<'a> UniqueFolioReservation<'a> {
+    /// Stores a value into the reserved slot.
+    pub fn store(self, value: Box<UniqueFolio>) -> Result<usize> {
+        if self.0.replace(self.1, value)?.is_some() {
+            crate::pr_err!(
+                "UniqueFolioXArray: Reservation stored but the entry already had data!\n"
+            );
+            // Consider it a success anyway, not much we can do
+        }
+        let index = self.1;
+        // The reservation is now fulfilled, so do not run our destructor.
+        std::mem::forget(self);
+        Ok(index)
+    }
+
+    /// Returns the index of this reservation.
+    pub fn index(&self) -> usize {
+        self.1
+    }
+}
+
+impl<'a> Drop for UniqueFolioReservation<'a> {
+    fn drop(&mut self) {
+        if self.0.remove(self.1).is_some() {
+            crate::pr_err!("UniqueFolioXArray: Reservation dropped but the entry was not empty!\n");
+        }
+    }
+}
+pub struct UniqueFolioXArray {
+    xa: Opaque<bindings::xarray>,
+    _p: PhantomData<Box<UniqueFolio>>,
+    _q: PhantomPinned,
+}
+
+impl UniqueFolioXArray {
+    /// Creates a new `UniqueFolioXArray` with the given flags.
+    pub fn new(flags: Flags) -> UniqueFolioXArray {
+        let xa = Opaque::uninit();
+
+        // SAFETY: We have just created `xa`. This data structure does not require
+        // pinning.
+        unsafe { bindings::xa_init_flags(xa.get(), flags) };
+
+        // INVARIANT: All pointers stored in the array are pointers obtained by
+        // calling `Box<UniqueFolio>::into_foreign`.
+        UniqueFolioXArray {
+            xa,
+            _p: PhantomData,
+            _q: PhantomPinned,
+        }
+    }
+
+    /// Replaces an entry with a new value, returning the old value (if any).
+    pub fn replace(
+        self: Pin<&Self>,
+        index: usize,
+        value: Box<UniqueFolio>,
+    ) -> Result<Option<Box<UniqueFolio>>> {
+        let new = value.into_foreign();
+        // SAFETY: `new` just came from into_foreign(), and we dismiss this guard if
+        // the xa_store operation succeeds and takes ownership of the pointer.
+        let guard = ScopeGuard::new(|| unsafe {
+            Box::<UniqueFolio>::from_foreign(new);
+        });
+
+        // SAFETY: `self.xa` is always valid by the type invariant, and we are storing
+        // a `Box::<UniqueFolio>::into_foreign()` result which upholds the later invariants.
+        let old = unsafe {
+            bindings::xa_store(
+                self.xa.get(),
+                index.try_into()?,
+                new as *mut _,
+                bindings::GFP_KERNEL,
+            )
+        };
+
+        // SAFETY: `xa_store` returns the old entry at this index on success or
+        // a UniqueFolioXArray result, which can be turn into an errno through `xa_err`.
+        to_result(unsafe { bindings::xa_err(old) })?;
+        guard.dismiss();
+
+        Ok(if old.is_null() {
+            None
+        } else {
+            // SAFETY: The old value must have been stored by either this function or
+            // `alloc_limits_opt`, both of which ensure non-NULL entries are valid
+            // ForeignOwnable pointers.
+            Some(unsafe { Box::<UniqueFolio>::from_foreign(old) })
+        })
+    }
+
+    /// Replaces an entry with a new value, dropping the old value (if any).
+    pub fn set(self: Pin<&Self>, index: usize, value: Box<UniqueFolio>) -> Result {
+        self.replace(index, value)?;
+        Ok(())
+    }
+
+    /// Looks up and returns a reference to an entry in the array, returning a `Guard` if it
+    /// exists.
+    ///
+    /// This guard blocks all other actions on the `UniqueFolioXArray`. Callers are expected to drop the
+    /// `Guard` eagerly to avoid blocking other users, such as by taking a clone of the value.
+    pub fn get(self: Pin<&Self>, index: usize) -> Option<UniqueFolioGuard<'_>> {
+        // SAFETY: `self.xa` is always valid by the type invariant.
+        unsafe { bindings::xa_lock(self.xa.get()) };
+
+        // SAFETY: `self.xa` is always valid by the type invariant.
+        let guard = ScopeGuard::new(|| unsafe { bindings::xa_unlock(self.xa.get()) });
+
+        // SAFETY: `self.xa` is always valid by the type invariant.
+        let p = unsafe { bindings::xa_load(self.xa.get(), index.try_into().ok()?) };
+
+        NonNull::new(p as *mut Box<UniqueFolio>).map(|p| {
+            guard.dismiss();
+            UniqueFolioGuard(p, self)
+        })
+    }
+
+    /// Removes and returns an entry, returning it if it existed.
+    pub fn remove(self: Pin<&Self>, index: usize) -> Option<Box<UniqueFolio>> {
+        // SAFETY: `self.xa` is always valid by the type invariant.
+        let p = unsafe { bindings::xa_erase(self.xa.get(), index.try_into().ok()?) };
+        if p.is_null() {
+            None
+        } else {
+            // SAFETY: All pointers stored in the array are pointers obtained by
+            // calling `Box<UniqueFolio>::into_foreign`.
+            Some(unsafe { Box::<UniqueFolio>::from_foreign(p) })
+        }
+    }
+
+    /// Allocates a new index in the array, optionally storing a new value into it, with
+    /// configurable bounds for the index range to allocate from.
+    ///
+    /// If `value` is `None`, then the index is reserved from further allocation but remains
+    /// free for storing a value into it.
+    fn alloc_limits_opt(
+        self: Pin<&Self>,
+        value: Option<Box<UniqueFolio>>,
+        min: u32,
+        max: u32,
+    ) -> Result<usize> {
+        let new = value.map_or(std::ptr::null(), |a| a.into_foreign());
+        let mut id: u32 = 0;
+
+        let guard = ScopeGuard::new(|| {
+            if !new.is_null() {
+                // SAFETY: If `new` is not NULL, it came from the `ForeignOwnable` we got
+                // from the caller.
+                unsafe { Box::<UniqueFolio>::from_foreign(new) };
+            }
+        });
+
+        // SAFETY: `self.xa` is always valid by the type invariant. If this succeeds, it
+        // takes ownership of the passed `Box<UniqueFolio>` (if any). If it fails, we must drop the
+        // `Box<UniqueFolio>` again.
+        let ret = unsafe {
+            bindings::xa_alloc(
+                self.xa.get(),
+                &mut id,
+                new as *mut _,
+                bindings::xa_limit { min, max },
+                bindings::GFP_KERNEL,
+            )
+        };
+
+        if ret < 0 {
+            Err(Error::from_errno(ret))
+        } else {
+            guard.dismiss();
+            Ok(id as usize)
+        }
+    }
+
+    /// Allocates a new index in the array, storing a new value into it, with configurable
+    /// bounds for the index range to allocate from.
+    pub fn alloc_limits(
+        self: Pin<&Self>,
+        value: Box<UniqueFolio>,
+        min: u32,
+        max: u32,
+    ) -> Result<usize> {
+        self.alloc_limits_opt(Some(value), min, max)
+    }
+
+    /// Allocates a new index in the array, storing a new value into it.
+    pub fn alloc(self: Pin<&Self>, value: Box<UniqueFolio>) -> Result<usize> {
+        self.alloc_limits(value, 0, u32::MAX)
+    }
+
+    /// Reserves a new index in the array within configurable bounds for the index.
+    ///
+    /// Returns a `Reservation` object, which can then be used to store a value at this index or
+    /// otherwise free it for reuse.
+    pub fn reserve_limits(
+        self: Pin<&Self>,
+        min: u32,
+        max: u32,
+    ) -> Result<UniqueFolioReservation<'_>> {
+        Ok(UniqueFolioReservation(
+            self,
+            self.alloc_limits_opt(None, min, max)?,
+            PhantomData,
+        ))
+    }
+
+    /// Reserves a new index in the array.
+    ///
+    /// Returns a `Reservation` object, which can then be used to store a value at this index or
+    /// otherwise free it for reuse.
+    pub fn reserve(self: Pin<&Self>) -> Result<UniqueFolioReservation<'_>> {
+        Ok(UniqueFolioReservation(
+            self,
+            self.alloc_limits_opt(None, 0, u32::MAX)?,
+            PhantomData,
+        ))
+    }
+}
+
+impl Drop for UniqueFolioXArray {
+    fn drop(&mut self) {
+        let mut index: std::ffi::c_ulong = 0;
+
+        // SAFETY: `self.xa` is valid by the type invariant, and as we have
+        // the only reference to the `XArray` we can safely iterate its contents
+        // and drop everything.
+        unsafe {
+            let mut entry = bindings::xa_find(
+                self.xa.get(),
+                &mut index,
+                std::ffi::c_ulong::MAX,
+                bindings::BINDINGS_XA_PRESENT,
+            );
+
+            while !entry.is_null() {
+                <Box<UniqueFolio> as ForeignOwnable>::from_foreign(entry);
+                entry = bindings::xa_find_after(
+                    self.xa.get(),
+                    &mut index,
+                    std::ffi::c_ulong::MAX,
+                    bindings::BINDINGS_XA_PRESENT,
+                );
+            }
+        }
+
+        // SAFETY: Locked locks are not safe to drop. Normally we would want to
+        // try_lock()/unlock() here for safety or something similar, but in this
+        // case xa_destroy() is guaranteed to acquire the lock anyway. This will
+        // deadlock if a lock guard was improperly dropped, but that is not UB,
+        // so it's sufficient for soundness purposes.
+        unsafe {
+            bindings::xa_destroy(self.xa.get());
+        }
+    }
+}
+
+// SAFETY: XArray is thread-safe and all mutation operations are internally locked.
+unsafe impl Send for UniqueFolioXArray {}
+unsafe impl Sync for UniqueFolioXArray {}
+
+impl UniqueFolioXArray {
+    pub fn from_xarray_ref(xarray_ref: Pin<&XArray<Box<UniqueFolio>>>) -> Pin<&UniqueFolioXArray> {
+        // SAFETY: TODO
+        unsafe {
+            Pin::new_unchecked(&*(&xarray_ref.get_ref().xa as *const _ as *const UniqueFolioXArray))
+        }
+    }
+}
