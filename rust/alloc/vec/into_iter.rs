@@ -425,7 +425,10 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for IntoIter<T, A> {
 // also refer to the vec::in_place_collect module documentation to get an overview
 #[unstable(issue = "none", feature = "inplace_iteration")]
 #[doc(hidden)]
-unsafe impl<T, A: Allocator> InPlaceIterable for IntoIter<T, A> {}
+unsafe impl<T, A: Allocator> InPlaceIterable for IntoIter<T, A> {
+    const EXPAND_BY: Option<NonZeroUsize> = NonZeroUsize::new(1);
+    const MERGE_BY: Option<NonZeroUsize> = NonZeroUsize::new(1);
+}
 
 #[unstable(issue = "none", feature = "inplace_iteration")]
 #[doc(hidden)]

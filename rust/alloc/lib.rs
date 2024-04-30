@@ -115,13 +115,14 @@
 #![feature(const_eval_select)]
 #![feature(const_maybe_uninit_as_mut_ptr)]
 #![feature(const_maybe_uninit_write)]
-#![feature(const_maybe_uninit_zeroed)]
 #![feature(const_pin)]
 #![feature(const_refs_to_cell)]
 #![feature(const_size_of_val)]
 #![feature(const_waker)]
 #![feature(core_intrinsics)]
 #![feature(core_panic)]
+#![feature(coroutine_trait)]
+#![feature(coroutines)]
 #![feature(deprecated_suggestion)]
 #![feature(dispatch_from_dyn)]
 #![feature(error_generic_member_access)]
@@ -141,7 +142,6 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(maybe_uninit_uninit_array_transpose)]
 #![feature(pattern)]
-#![feature(pointer_byte_offsets)]
 #![feature(ptr_internals)]
 #![feature(ptr_metadata)]
 #![feature(ptr_sub_ptr)]
@@ -168,7 +168,6 @@
 //
 // Language features:
 // tidy-alphabetical-start
-#![cfg_attr(not(test), feature(generator_trait))]
 #![cfg_attr(test, feature(panic_update_hook))]
 #![cfg_attr(test, feature(test))]
 #![feature(allocator_internals)]
