@@ -8,7 +8,6 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(allocator_api)]
 #![feature(offset_of)]
-#![feature(box_into_inner)]
 
 use std::ops::Deref;
 
@@ -25,7 +24,7 @@ use kernel::{
     prelude::*,
     sync::{Arc, Mutex, SpinLock},
     types::ForeignOwnable,
-    xarray::vec_from_uniquefolio_xarray,
+    xarray::UniqueFolioXArray,
 };
 
 use vstd::prelude::*;
@@ -66,7 +65,7 @@ module! {
 }
 
 // verus! { //VERUSBLOCK
-type Tree = Vec<Option<Box<UniqueFolio>>>;
+type Tree = kernel::xarray::UniqueFolioXArray;
 type TreeRef<'a> = Pin<&'a Tree>;
 
 #[verifier(external_body)]
@@ -79,6 +78,27 @@ pub struct ExPin<T> {
 #[verifier(external_type_specification)]
 #[verifier(external_body)]
 pub struct ExUniqueFolioGuard<'a>(kernel::xarray::UniqueFolioGuard<'a>);
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExUniqueFolioXArray(UniqueFolioXArray);
+
+#[verifier(external_fn_specification)]
+pub fn ex_uniquefolio_xarray_get(
+    xarray: TreeRef<'_>,
+    index: usize,
+) -> Option<kernel::xarray::UniqueFolioGuard<'_>> {
+    xarray.get(index)
+}
+
+#[verifier(external_fn_specification)]
+pub fn ex_uniquefolio_xarray_set(
+    xarray: TreeRef<'_>,
+    index: usize,
+    value: Box<UniqueFolio>,
+) -> Result {
+    xarray.set(index, value)
+}
 
 #[verifier(external_type_specification)]
 #[verifier(external_body)]
@@ -114,40 +134,33 @@ pub fn ex_box_try_new<T>(value: T) -> Result<Box<T>, std::alloc::AllocError> {
 }
 
 #[verifier(external_fn_specification)]
-pub fn ex_folio_try_new(value: u32) -> Result<UniqueFolio> {
+pub fn folio_try_new(value: u32) -> Result<UniqueFolio> {
     Folio::try_new(value)
-}
-
-#[verifier(external_fn_specification)]
-pub fn ex_box_deref<T>(value: &Box<T>) -> &T {
-    verus_helper_box_deref(value)
 }
 
 impl NullBlkDevice {
     #[inline(always)]
-    fn write(tree: &mut Tree, sector: usize, segment: &Segment<'_>) -> Result {
+    fn write(tree: TreeRef<'_>, sector: usize, segment: &Segment<'_>) -> Result {
         let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
 
-        assume(idx < tree.len());
-        let mut folio = if let Some(page) = &tree[idx] {
+        let mut folio = if let Some(page) = tree.get(idx) {
             page
         } else {
-            tree.set(idx, Some(Box::try_new(Folio::try_new(0)?)?));
-            tree[idx].as_ref().unwrap()
+            tree.set(idx, Box::try_new(Folio::try_new(0)?)?)?;
+            tree.get(idx).unwrap()
         };
 
-        segment.copy_to_folio(&mut folio)?;
+        // segment.copy_to_folio(&mut folio)?;
 
         Ok(())
     }
 
     #[inline(always)]
-    fn read(tree: &Tree, sector: usize, segment: &mut Segment<'_>) -> Result {
+    fn read(tree: TreeRef<'_>, sector: usize, segment: &mut Segment<'_>) -> Result {
         let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
 
-        assume(idx < tree.len());
-        if let Some(folio) = &tree[idx] {
-            segment.copy_from_folio(&verus_helper_box_deref(folio))?;
+        if let Some(folio) = tree.get(idx) {
+            segment.copy_from_folio(verus_helper_guard_deref(&folio))?;
         }
 
         Ok(())
@@ -162,10 +175,6 @@ fn verus_helper_guard_deref<'a>(
     guard: &'a kernel::xarray::UniqueFolioGuard<'a>,
 ) -> &'a UniqueFolio {
     guard.deref()
-}
-
-fn verus_helper_box_deref<T>(value: &Box<T>) -> &T {
-    value.deref()
 }
 
 #[derive(Debug)]
@@ -256,7 +265,7 @@ impl NullBlkDevice {
     #[inline(never)]
     fn transfer(
         command: bindings::req_op,
-        tree: &mut Tree,
+        tree: TreeRef<'_>,
         sector: usize,
         segment: &mut Segment<'_>,
     ) -> Result {
@@ -322,7 +331,7 @@ impl Operations for NullBlkDevice {
                 for mut segment in bio.segment_iter() {
                     Self::transfer(
                         rq.command(),
-                        vec_from_uniquefolio_xarray(tree),
+                        UniqueFolioXArray::from_xarray_ref(tree),
                         sector,
                         &mut segment,
                     )?;

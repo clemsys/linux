@@ -1,0 +1,166 @@
+// SPDX-License-Identifier: GPL-2.0
+
+//! This is a null block driver. It currently supports optional memory backing,
+//! blk-mq interface and direct completion. The driver is configured at module
+//! load time by parameters `param_memory_backed`, `param_capacity_mib`,
+//! `param_irq_mode` and `param_completion_time_nsec!.
+
+#![feature(impl_trait_in_assoc_type)]
+#![feature(allocator_api)]
+#![feature(offset_of)]
+
+use std::ops::Deref;
+
+use kernel::{
+    bindings,
+    block::{
+        bio::Segment,
+        mq::{self, GenDisk, Operations, TagSet},
+    },
+    error::Result,
+    folio::*,
+    hrtimer::{RawTimer, TimerCallback},
+    new_mutex, new_spinlock, pr_info,
+    prelude::*,
+    sync::{Arc, Mutex, SpinLock},
+    types::ForeignOwnable,
+};
+
+use vstd::prelude::*;
+
+module! {
+    type: NullBlkModule,
+    name: "rnull_mod",
+    author: "Andreas Hindborg",
+    license: "GPL v2",
+    params: {
+        param_memory_backed: bool {
+            default: true,
+            permissions: 0,
+            description: "Use memory backing",
+        },
+        // Problems with pin_init when `irq_mode`
+        param_irq_mode: u8 {
+            default: 0,
+            permissions: 0,
+            description: "IRQ Mode (0: None, 1: Soft, 2: Timer)",
+        },
+        param_capacity_mib: u64 {
+            default: 4096,
+            permissions: 0,
+            description: "Device capacity in MiB",
+        },
+        param_completion_time_nsec: u64 {
+            default: 1_000_000,
+            permissions: 0,
+            description: "Completion time in nano seconds for timer mode",
+        },
+        param_block_size: u16 {
+            default: 4096,
+            permissions: 0,
+            description: "Block size in bytes",
+        },
+    },
+}
+
+// verus! { //VERUSBLOCK
+type Tree = Vec<Option<Box<UniqueFolio>>>;
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExUniqueFolio(UniqueFolio);
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExSegment<'a>(Segment<'a>);
+
+#[verifier(external_fn_specification)]
+pub fn ex_segment_copy_from_folio<'a>(segment: &mut Segment<'a>, src: &UniqueFolio) -> Result {
+    segment.copy_from_folio(src)
+}
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExError(kernel::error::Error);
+
+#[verifier(external_type_specification)]
+#[verifier(external_body)]
+pub struct ExAllocError(std::alloc::AllocError);
+
+#[verifier(external_fn_specification)]
+pub fn ex_box_try_new<T>(value: T) -> Result<Box<T>, std::alloc::AllocError> {
+    Box::try_new(value)
+}
+
+#[verifier(external_fn_specification)]
+pub fn folio_try_new(value: u32) -> Result<UniqueFolio> {
+    Folio::try_new(value)
+}
+
+impl NullBlkDevice {
+    #[inline(always)]
+    fn write(mut tree: Tree, sector: usize, segment: &Segment<'_>) -> Result {
+        let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
+
+        let mut folio = if let Some(page) = &tree[idx] {
+            page
+        } else {
+            tree.set(idx, Some(Box::try_new(Folio::try_new(0)?)?));
+            let read = &tree[idx];
+            &read.unwrap()
+        };
+
+        //segment.copy_to_folio(&mut folio)?;
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn read(tree: Tree, sector: usize, segment: &mut Segment<'_>) -> Result {
+        let idx = sector >> 3usize; // TODO: PAGE_SECTOR_SHIFT
+
+        if let Some(folio) = &tree[idx] {
+            segment.copy_from_folio(&folio)?;
+        }
+
+        Ok(())
+    }
+}
+
+// } //VERUSBLOCK
+
+// verus_helper functions are used to work around unimplemented features in Verus
+
+struct NullBlkModule;
+
+impl kernel::Module for NullBlkModule {
+    fn init(_module: &'static ThisModule) -> Result<Self> {
+        pr_info!("Rust null_blk loaded\n");
+        Ok(Self)
+    }
+}
+
+impl Drop for NullBlkModule {
+    fn drop(&mut self) {
+        pr_info!("Dropping rnullb\n");
+    }
+}
+
+struct NullBlkDevice;
+
+impl NullBlkDevice {
+    #[inline(never)]
+    fn transfer(
+        command: bindings::req_op,
+        tree: Tree,
+        sector: usize,
+        segment: &mut Segment<'_>,
+    ) -> Result {
+        match command {
+            bindings::req_op_REQ_OP_WRITE => Self::write(tree, sector, segment)?,
+            bindings::req_op_REQ_OP_READ => Self::read(tree, sector, segment)?,
+            _ => (),
+        }
+        Ok(())
+    }
+}

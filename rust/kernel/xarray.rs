@@ -356,6 +356,12 @@ impl<T: ForeignOwnable> Drop for XArray<T> {
 unsafe impl<T: Send + ForeignOwnable> Send for XArray<T> {}
 unsafe impl<T: Sync + ForeignOwnable> Sync for XArray<T> {}
 
+pub fn vec_from_uniquefolio_xarray(
+    tree: Pin<&XArray<Box<UniqueFolio>>>,
+) -> &mut Vec<Option<Box<UniqueFolio>>> {
+    todo!()
+}
+
 // Reimplementations for UniqueFolio
 use crate::folio::UniqueFolio;
 
@@ -678,9 +684,6 @@ unsafe impl Sync for UniqueFolioXArray {}
 
 impl UniqueFolioXArray {
     pub fn from_xarray_ref(xarray_ref: Pin<&XArray<Box<UniqueFolio>>>) -> Pin<&UniqueFolioXArray> {
-        // SAFETY: TODO
-        unsafe {
-            Pin::new_unchecked(&*(&xarray_ref.get_ref().xa as *const _ as *const UniqueFolioXArray))
-        }
+        todo!()
     }
 }
